@@ -13,3 +13,4 @@ embeds.xml
 Locales\Locales.xml
 
 OrbFrames.lua
+Presets.lua

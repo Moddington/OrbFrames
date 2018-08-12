@@ -28,6 +28,29 @@ OrbFrames.version = '0.0'
 -- Default config data
 OrbFrames.defaults = {
     profile = {
+		colors = {
+			classes = {
+				DEATHKNIGHT = { 0.77, 0.12, 0.23 },
+				DEMONHUNTER = { 0.64, 0.19, 0.79 },
+				DRUID       = { 1.00, 0.49, 0.04 },
+				HUNTER      = { 0.67, 0.83, 0.45 },
+				MAGE        = { 0.41, 0.80, 0.94 },
+				MONK        = { 0.33, 0.54, 0.52 },
+				PALADIN     = { 0.96, 0.55, 0.73 },
+				PRIEST      = { 1.00, 1.00, 1.00 },
+				ROGUE       = { 1.00, 0.96, 0.41 },
+				SHAMAN      = { 0.00, 0.44, 0.87 },
+				WARLOCK     = { 0.58, 0.51, 0.79 },
+				WARRIOR     = { 0.78, 0.61, 0.43 },
+			},
+			resources = {
+				HEALTH = { 1.00, 0.00, 0.00 },
+				MANA   = { 0.00, 0.00, 1.00 },
+				RAGE   = { 1.00, 0.00, 0.00 },
+				FOCUS  = { 1.00, 0.50, 0.25 },
+				ENERGY = { 1.00, 1.00, 0.00 },
+			},
+		},
     },
 }
 
