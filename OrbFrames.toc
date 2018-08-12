@@ -1,0 +1,15 @@
+## Interface: 80000
+## Title: OrbFrames
+## Notes: Orb-style unit frames.
+## Author: Moddington
+## OptionalDeps: Ace3, LibSharedMedia-3.0, !BugGrabber
+## SavedVariables: OrbFramesDB
+## X-Category: Unit Frames
+
+-- Embedded libraries
+embeds.xml
+
+-- Localizations
+Locales\Locales.xml
+
+OrbFrames.lua

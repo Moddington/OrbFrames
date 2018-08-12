@@ -1,0 +1,7 @@
+* text=auto
+
+*.toc text eol=crlf
+*.xml text eol=crlf
+*.lua text eol=crlf
+.*meta text eol=crlf
+LICENSE text eol=crlf
