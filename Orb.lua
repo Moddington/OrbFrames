@@ -164,6 +164,10 @@ function Orb:UpdateOrb()
             proportion = UnitHealth(unit) / UnitHealthMax(unit)
         elseif resource == 'power' then
             proportion = UnitPower(unit) / UnitPowerMax(unit)
+        elseif resource == 'full' then
+            proportion = 1
+        elseif resource == 'empty' then
+            proportion = 0
         end
         if proportion > 0 then
             proportion = math.min(1, proportion)
