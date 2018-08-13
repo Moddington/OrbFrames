@@ -24,14 +24,21 @@ presets['PlayerHealth'] = {
 
     colorStyle = 'resource',
     size = 256,
-    position = { 'BOTTOMLEFT', 50, 50 },
+    anchor = {
+        point = 'BOTTOMLEFT',
+        x = 15,
+        y = 15,
+    },
+    backdropTexture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
     fillTexture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+    borderTexture = '',
+    borderArtTexture = '',
 }
 
 presets['PlayerPower'] = {
     enabled = true,
     locked = true,
-    mirror = 'PlayerHealth'
+    mirror = 'PlayerHealth',
 
     resource = 'power',
 }
@@ -43,16 +50,17 @@ presets['PlayerPower'] = {
 presets['PetHealth'] = {
     enabled = true,
     locked = true,
+    inherit = 'PlayerHealth',
 
     unit = 'pet',
-    resource = 'health',
-    style = 'simple',
 
-    colorStyle = 'resource',
-    size = 64,
+    size = 128,
     parent = 'PlayerHealth',
-    position = { 'BOTTOMRIGHT', 32, 0 },
-    fillTexture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+    anchor = {
+        point = 'BOTTOMRIGHT',
+        x = 32,
+        y = 0,
+    },
 }
 
 presets['PetPower'] = {

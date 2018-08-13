@@ -6,11 +6,12 @@
 ## SavedVariables: OrbFramesDB
 ## X-Category: Unit Frames
 
--- Embedded libraries
+# Embedded libraries
 embeds.xml
 
--- Localizations
+# Localizations
 Locales\Locales.xml
 
 OrbFrames.lua
 Presets.lua
+Orb.lua

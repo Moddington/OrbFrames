@@ -51,6 +51,7 @@ OrbFrames.defaults = {
 				ENERGY = { 1.00, 1.00, 0.00 },
 			},
 		},
+        orbs = { },
     },
 }
 
@@ -59,13 +60,16 @@ OrbFrames.defaults = {
 -- ============================================================================
 
 function OrbFrames:OnInitialize()
+    self.orbs = { }
     self:InitOptions()
 end
 
 function OrbFrames:OnEnable()
+    self:LoadAllOrbs()
 end
 
 function OrbFrames:OnDisable()
+    self:DisableAllOrbs()
 end
 
 -- ============================================================================
