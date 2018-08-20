@@ -16,7 +16,6 @@ local Orb = { }
 
 -- Local values and helper functions
 local mirrored_anchors
-local orb_default_settings
 local ApplyTexture
 local MirrorSetting
 
@@ -66,6 +65,10 @@ function OrbFrames:CreateOrb(name, settings)
     orb:SetScript('OnEvent', orb.OnEvent)
     orb:SetScript('OnDragStart', orb.OnDragStart)
     orb:SetScript('OnDragStop', orb.OnDragStop)
+
+    -- Default orb settings
+    orb.flipped = false
+    orb.aspectRatio = 1
 
     -- Apply settings
     if settings ~= nil then orb:ApplyOrbSettings(settings) end
@@ -209,27 +212,18 @@ end
 --  C. Settings
 -- ============================================================================
 
+local setting_application -- functions to apply settings to an orb, indexed by setting name
+local setting_inheritance -- inheritance order for each setting
+
 function Orb:ApplyOrbSettings(settings)
-    -- Set metatable for value inheritance
-    local mirror_orb = nil
-    local inherit_orb = nil
-    setmetatable(settings, {
-        __index = function(t, k)
-            if rawget(t, k) ~= nil then return rawget(t, k) end
-            if mirror_orb ~= nil and mirror_orb[k] ~= nil then return MirrorSetting(k, mirror_orb[k]) end
-            if inherit_orb ~= nil and inherit_orb[k] ~= nil then return inherit_orb[k] end
-            return orb_default_settings[k]
-        end,
-    })
-
-    -- Suspend updates
-    self:SuspendOrbUpdates()
-
-    -- Apply settings
-    local enabled = settings.enabled
-    if enabled ~= nil then self:SetOrbEnabled(enabled) end
-    local locked = settings.locked
-    if locked ~= nil then self:SetOrbLocked(locked) end
+    -- Fetch inheritance orbs
+    local inherit_orb
+    local inherit = settings.inherit
+    if inherit ~= nil then
+        inherit_orb = OrbFrames.db.profile.orbs[inherit]
+        if inherit_orb == nil then error('Inherited orb "'..inherit..'" does not exist') end
+    end
+    local mirror_orb
     local mirror = settings.mirror
     if mirror ~= nil then
         mirror_orb = OrbFrames.db.profile.orbs[mirror]
@@ -237,191 +231,217 @@ function Orb:ApplyOrbSettings(settings)
             error('Mirrored orb "'..mirror..'" does not exist')
         end
     end
-    local inherit = settings.inherit
-    if inherit ~= nil then
-        inherit_orb = OrbFrames.db.profile.orbs[inherit]
-        if inherit_orb == nil then error('Inherited orb "'..inherit..'" does not exist') end
+
+    -- Suspend orb updates
+    self:SuspendUpdates()
+
+    -- Apply settings
+    for setting, apply in pairs(setting_application) do
+        local value = settings[setting]
+        if value == nil then
+            -- Attempt to inherit value according to the setting's inheritance order
+            for _, inherit_from in ipairs(setting_inheritance[setting]) do
+                if inherit_from == 'inherit' then
+                    value = inherit_orb[setting]
+                elseif inherit_from == 'mirror' then
+                    value = MirrorSetting(setting, mirror_orb[setting])
+                end
+                if value ~= nil then break end
+            end
+        end
+        if value ~= nil then
+            self[setting] = value
+            apply(self, value)
+        end
     end
 
-    local unit = settings.unit
-    if unit ~= nil then self:SetOrbUnit(unit) end
-    local resource = settings.resource
-    if resource ~= nil then self:SetOrbResource(resource) end
-    local style = settings.style
-    if style ~= nil then self:SetOrbStyle(style) end
-
-    local colorStyle = settings.colorStyle
-    if colorStyle ~= nil then self:SetOrbColorStyle(colorStyle) end
-    local size = settings.size
-    if size ~= nil then self:SetOrbSize(size) end
-    local aspectRatio = settings.aspectRatio
-    if aspectRatio ~= nil then self:SetOrbAspectRatio(aspectRatio) end
-    local flipped = settings.flipped
-    if flipped ~= nil then self:SetOrbFlipped(flipped) end
-    local parent = settings.parent
-    if parent ~= nil then self:SetOrbParent(parent) end
-    local anchor = settings.anchor
-    if anchor ~= nil then self:SetOrbAnchor(anchor) end
-    local backdropTexture = settings.backdropTexture
-    if backdropTexture ~= nil then self:SetOrbBackdropTexture(backdropTexture) end
-    local fillTexture = settings.fillTexture
-    if fillTexture ~= nil then self:SetOrbFillTexture(fillTexture) end
-    local borderTexture = settings.borderTexture
-    if borderTexture ~= nil then self:SetOrbBorderTexture(borderTexture) end
-    local borderArtTexture = settings.borderArtTexture
-    if borderArtTexture ~= nil then self:SetOrbBorderArtTexture(borderArtTexture) end
-
-    -- Resume updates
-    self:ResumeOrbUpdates()
-
-    -- Clear settings metatable
-    setmetatable(settings, nil)
+    -- Resume orb updates
+    self:ResumeUpdates()
 
     -- Update and return
     self:UpdateOrb()
 end
 
-function Orb:SetOrbEnabled(enabled)
-    if enabled ~= self.enabled then
-        self.enabled = enabled
-        if enabled then
-            self:Show()
-        else
-            self:Hide()
-        end
+function Orb:ApplyOrbSetting(setting, value)
+    local apply = setting_application[setting]
+    if apply == nil then error('Unknown setting "'..setting..'"') end
+
+    if value ~= self[setting] then
+        self[setting] = value
+        apply(self, value)
     end
 end
 
-function Orb:SetOrbLocked(locked)
-    if locked ~= self.locked then
-        self.locked = locked
-        if locked then
-            self:RegisterForDrag()
-        else
-            self:RegisterForDrag('LeftButton')
-        end
+-- Setting 'enabled' (boolean)
+-- Description: Whether the orb is enabled or disabled
+setting_inheritance.enabled = { }
+function setting_application.enabled(self, enabled)
+    if enabled then
+        self:ResumeOrbUpdates()
+        self:Show()
+    else
+        self:Hide()
+        self:SuspendOrbUpdates()
     end
 end
 
-function Orb:SetOrbUnit(unit)
-    if unit ~= self.unit then
-        self.unit = unit
-        self:SetAttribute('unit', unit)
-        SecureUnitButton_OnLoad(self, unit) -- TODO: menuFunc
-        self:RegisterOrbEvents()
+-- Setting 'locked' (boolean)
+-- Description: Whether the orb is locked in place, or can be repositioned with
+--              the mouse
+setting_inheritance.locked = { 'mirror', }
+function setting_application.locked(self, locked)
+    if locked then
+        self:RegisterForDrag()
+    else
+        self:RegisterForDrag('LeftButton')
+    end
+end
+
+-- Setting 'unit' (string)
+-- Description: Which unit the orb is tracking
+-- Values: Any valid WoW unit name
+setting_inheritance.unit = { 'mirror', 'inherit', }
+function setting_application.unit(self, unit)
+    self:SetAttribute('unit', unit)
+    SecureUnitButton_OnLoad(self, unit) -- TODO: menuFunc
+    self:RegisterOrbEvents()
+    self:UpdateOrb()
+end
+
+-- Setting 'resource' (string)
+-- Description: Which resource the orb is displaying
+-- Values: 'health' - The unit's health
+--         'power'  - The unit's primary power type
+--         'empty'  - Always show an empty orb
+--         'full'   - Always show a full orb
+setting_inheritance.resource = { 'mirror', 'inherit', }
+function setting_application.resource(self, resource)
+    self:RegisterOrbEvents()
+    self:UpdateOrb()
+end
+
+-- Setting 'style' (string)
+-- Description: The style used for the orb
+-- Values: 'simple' - An orb that fills vertically
+setting_inheritance.style = { 'mirror', 'inherit', }
+function setting_application.style(self, style)
+    if style == 'simple' then
+        self:CreateOrbBackdropTexture()
+        self:CreateOrbFillTexture()
+        self:CreateOrbBorderTexture()
+        self:CreateOrbBorderArtTexture()
+    end
+    self:RegisterOrbEvents()
+end
+
+-- Setting 'colorStyle' (string)
+-- Description: The method used to choose the color for the orb liquid
+-- Values: 'class'    - The unit's class color
+--         'resource' - The resource's color
+setting_inheritance.colorStyle = { 'mirror', 'inherit', }
+function setting_application.colorStyle(self, colorStyle)
+    self:UpdateOrb()
+end
+
+-- Setting 'size' (number)
+-- Description: The vertical size of the orb
+setting_inheritance.size = { 'mirror', 'inherit', }
+function setting_application.size(self, size)
+    local aspectRatio = self.aspectRatio
+    if aspectRatio ~= nil then
+        self:SetWidth(size * aspectRatio)
+        self:SetHeight(size)
         self:UpdateOrb()
     end
 end
 
-function Orb:SetOrbResource(resource)
-    if resource ~= self.resource then
-        self.resource = resource
-        self:RegisterOrbEvents()
+-- Setting 'aspectRatio' (number)
+-- Description: The ratio between the orb's height and its width
+setting_inheritance.aspectRatio = { 'mirror', 'inherit', }
+function setting_application.aspectRatio(self, aspectRatio)
+    local size = self.size
+    if size ~= nil then
+        self:SetWidth(size * aspectRatio)
+        self:SetHeight(size)
         self:UpdateOrb()
     end
 end
 
-function Orb:SetOrbStyle(style)
-    if style ~= self.style then
-        self.style = style
-        if style == 'simple' then
-            self:CreateOrbBackdropTexture()
-            self:CreateOrbFillTexture()
-            self:CreateOrbBorderTexture()
-            self:CreateOrbBorderArtTexture()
-        end
-        self:RegisterOrbEvents()
-    end
+-- Setting 'flipped' (boolean)
+-- Description: Whether the orb is flipped horizontally
+setting_inheritance.flipped = { 'mirror', 'inherit', }
+function setting_application.flipped(self, flipped)
+    self:UpdateOrb()
 end
 
-function Orb:SetOrbColorStyle(colorStyle)
-    if colorStyle ~= self.colorStyle then
-        self.colorStyle = colorStyle
-        self:UpdateOrb()
+-- Setting 'parent' (string)
+-- Description: Which orb, if any, to be parented to
+-- Values: Any valid orb name
+--         nil - Parent to UIParent instead
+-- TODO - allow parenting to any frame
+setting_inheritance.parent = { 'mirror', 'inherit', }
+function setting_application.parent(self, parent)
+    if parent == nil then
+        parent = UIParent
+    else
+        parent = OrbFrames.orbs[parent]
     end
+    self:SetParent(parent)
+    self:SetOrbAnchors()
 end
 
-function Orb:SetOrbSize(size)
-    if size ~= self.size then
-        self.size = size
-        local aspectRatio = self.aspectRatio
-        if aspectRatio ~= nil then
-            self:SetWidth(size * aspectRatio)
-            self:SetHeight(size)
-            self:UpdateOrb()
-        end
-    end
+-- Setting 'anchor' (table)
+-- Description: An anchor used to position the orb
+-- Values: { point (string)         - Point on the orb to anchor with
+--         , relativeTo (string)    - Name of the frame to anchor to (defaults
+--                                    to the orb's parent)
+--         , relativePoint (string) - Point on the relative frame to anchor to
+--                                    (defaults to same as point)
+--         , x (number)             - X offset
+--         , y (number)             - Y offset
+--         }
+--         nil - Defaults to { point = 'CENTER', }
+-- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
+--        BOTTOM, BOTTOMLEFT, LEFT, CENTER
+setting_inheritance.anchor = { 'mirror', 'inherit', }
+function setting_application.anchor(self, anchor)
+    self:SetOrbAnchors()
 end
 
-function Orb:SetOrbAspectRatio(aspectRatio)
-    if aspectRatio ~= self.aspectRatio then
-        self.aspectRatio = aspectRatio
-        local size = self.size
-        if size ~= nil then
-            self:SetWidth(size * aspectRatio)
-            self:SetHeight(size)
-            self:UpdateOrb()
-        end
-    end
+-- Setting 'backdropTexture' (string)
+-- Description: Name of the texture to use as a backdrop
+-- Values: Any valid path to a texture
+setting_inheritance.backdropTexture = { 'mirror', 'inherit', }
+function setting_application.backdropTexture(self, backdropTexture)
+    local r_backdropTexture = self.regions.backdropTexture
+    if r_backdropTexture ~= nil then ApplyTexture(r_backdropTexture, backdropTexture) end
 end
 
-function Orb:SetOrbFlipped(flipped)
-    if flipped ~= self.flipped then
-        self.flipped = flipped
-        self:UpdateOrb()
-    end
+-- Setting 'fillTexture' (string)
+-- Description: Name of the texture to use for the fill
+-- Values: Any valid path to a texture
+setting_inheritance.fillTexture = { 'mirror', 'inherit', }
+function setting_application.fillTexture(self, fillTexture)
+    local r_fillTexture = self.regions.fillTexture
+    if r_fillTexture ~= nil then ApplyTexture(r_fillTexture, fillTexture) end
 end
 
-function Orb:SetOrbParent(parent)
-    if parent ~= self.parent then
-        self.parent = parent
-        if parent == nil then
-            parent = UIParent
-        else
-            parent = OrbFrames.orbs[parent]
-        end
-        self:SetParent(parent)
-        self:SetOrbAnchors()
-    end
+-- Setting 'borderTexture' (string)
+-- Description: Name of the texture to use as a border
+-- Values: Any valid path to a texture
+setting_inheritance.borderTexture = { 'mirror', 'inherit', }
+function setting_application.borderTexture(self, borderTexture)
+    local r_borderTexture = self.regions.borderTexture
+    if r_borderTexture ~= nil then ApplyTexture(r_borderTexture, borderTexture) end
 end
 
-function Orb:SetOrbAnchor(anchor)
-    if anchor ~= self.anchor then
-        self.anchor = anchor
-        self:SetOrbAnchors()
-    end
-end
-
-function Orb:SetOrbBackdropTexture(backdropTexture)
-    if backdropTexture ~= self.backdropTexture then
-        self.backdropTexture = backdropTexture
-        local r_backdropTexture = self.regions.backdropTexture
-        if r_backdropTexture ~= nil then ApplyTexture(r_backdropTexture, backdropTexture) end
-    end
-end
-
-function Orb:SetOrbFillTexture(fillTexture)
-    if fillTexture ~= self.fillTexture then
-        self.fillTexture = fillTexture
-        local r_fillTexture = self.regions.fillTexture
-        if r_fillTexture ~= nil then ApplyTexture(r_fillTexture, fillTexture) end
-    end
-end
-
-function Orb:SetOrbBorderTexture(borderTexture)
-    if borderTexture ~= self.borderTexture then
-        self.borderTexture = borderTexture
-        local r_borderTexture = self.regions.borderTexture
-        if r_borderTexture ~= nil then ApplyTexture(r_borderTexture, borderTexture) end
-    end
-end
-
-function Orb:SetOrbBorderArtTexture(borderArtTexture)
-    if borderArtTexture ~= self.borderArtTexture then
-        self.borderArtTexture = borderArtTexture
-        local r_borderArtTexture = self.regions.borderArtTexture
-        if r_borderArtTexture ~= nil then ApplyTexture(r_borderArtTexture, borderArtTexture) end
-    end
+-- Setting 'borderArtTexture' (string)
+-- Description: Name of the texture to use as border artwork
+-- Values: Any valid path to a texture
+setting_inheritance.borderArtTexture = { 'mirror', 'inherit', }
+function setting_application.borderArtTexture(self, borderArtTexture)
+    local r_borderArtTexture = self.regions.borderArtTexture
+    if r_borderArtTexture ~= nil then ApplyTexture(r_borderArtTexture, borderArtTexture) end
 end
 
 -- ============================================================================
@@ -491,11 +511,6 @@ mirrored_anchors = {
     ['CENTER'] = 'CENTER',
 }
 
-orb_default_settings = {
-    aspectRatio = 1,
-    flipped = false,
-}
-
 function ApplyTexture(r_texture, texture)
     if type(texture) == 'string' then
         r_texture:SetTexture(texture)
@@ -505,6 +520,7 @@ function ApplyTexture(r_texture, texture)
 end
 
 function MirrorSetting(k, v)
+    if v == nil then return end
     if k == 'anchor' then
         return {
             point = mirrored_anchors[v.point],
