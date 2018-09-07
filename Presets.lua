@@ -38,7 +38,8 @@ presets['PlayerHealth'] = {
 presets['PlayerPower'] = {
     enabled = true,
     locked = true,
-    mirror = 'PlayerHealth',
+    inherit = 'PlayerHealth',
+    inheritStyle = 'mirror',
 
     resource = 'power',
 }
@@ -66,7 +67,8 @@ presets['PetHealth'] = {
 presets['PetPower'] = {
     enabled = true,
     locked = true,
-    mirror = 'PetHealth',
+    inherit = 'PetHealth',
+    inheritStyle = 'mirror',
 
     resource = 'power',
 
