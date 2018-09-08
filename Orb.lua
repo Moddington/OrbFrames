@@ -263,6 +263,7 @@ end
 -- ============================================================================
 
 local Settings = { }
+local settingOrder = { } -- This value is populated at the end of this section
 
 function Orb:ApplyOrbSettings(settings)
     -- Read orb settings to acquire inherited and default values
@@ -272,7 +273,8 @@ function Orb:ApplyOrbSettings(settings)
     self:SuspendOrbUpdates()
 
     -- Apply settings
-    for setting, fields in pairs(Settings) do
+    for _, setting in ipairs(settingOrder) do
+        local fields = Settings[setting]
         if fields._group then
             local settingGroup = settings[setting]
             local selfSettingGroup = self[setting]
@@ -519,6 +521,21 @@ Settings.borderArtTexture.texture = { }
 function Settings.borderArtTexture.texture.apply(orb, texture)
     local r_borderArtTexture = orb.regions.borderArtTexture
     if r_borderArtTexture ~= nil then ApplyTexture(r_borderArtTexture, texture) end
+end
+
+-- Optimize the loading order of settings
+do
+    local settingPriorities = {
+        -- Positive values push to the front of the list, negative to the back
+        style = 100,
+        enabled = -100,
+    }
+    for setting, _ in pairs(Settings) do
+        table.insert(settingOrder, setting)
+    end
+    table.sort(settingOrder, function(l, r)
+        return (settingPriorities[l] or 0) > (settingPriorities[r] or 0)
+    end)
 end
 
 -- ============================================================================
