@@ -70,6 +70,13 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
     orb:SetScript('OnDragStart', orb.OnDragStart)
     orb:SetScript('OnDragStop', orb.OnDragStop)
 
+    -- Setting groups
+    orb.backdropTexture = { }
+    orb.backdropArtTexture = { }
+    orb.fillTexture = { }
+    orb.borderTexture = { }
+    orb.borderArtTexture = { }
+
     -- Default orb settings
     orb.enabled = true
     orb.flipped = false
@@ -266,10 +273,24 @@ function Orb:ApplyOrbSettings(settings)
 
     -- Apply settings
     for setting, fields in pairs(Settings) do
-        local value = settings[setting]
-        if value ~= nil and value ~= self[setting] then
-            self[setting] = value
-            fields.apply(self, value)
+        if fields._group then
+            local settingGroup = settings[setting]
+            local selfSettingGroup = self[setting]
+            for setting, fields in pairs(fields) do
+                if not string.match(setting, '^_') then
+                    local value = settingGroup[setting]
+                    if value ~= nil and value ~= selfSettingGroup[setting] then
+                        selfSettingGroup[setting] = value
+                        fields.apply(self, value)
+                    end
+                end
+            end
+        else
+            local value = settings[setting]
+            if value ~= nil and value ~= self[setting] then
+                self[setting] = value
+                fields.apply(self, value)
+            end
         end
     end
 
@@ -435,49 +456,69 @@ function Settings.anchor.apply(orb, anchor)
     orb:SetOrbAnchors()
 end
 
--- Setting 'backdropTexture' (string)
+-- Setting group 'backdropTexture'
+-- Description: Contains settings related to the orb's backdrop
+Settings.backdropTexture = { _group = true }
+
+-- Setting 'backdropTexture.texture' (string)
 -- Description: Name of the texture to use as a backdrop
 -- Values: Any valid path to a texture
-Settings.backdropTexture = { }
-function Settings.backdropTexture.apply(orb, backdropTexture)
+Settings.backdropTexture.texture = { }
+function Settings.backdropTexture.texture.apply(orb, texture)
     local r_backdropTexture = orb.regions.backdropTexture
-    if r_backdropTexture ~= nil then ApplyTexture(r_backdropTexture, backdropTexture) end
+    if r_backdropTexture ~= nil then ApplyTexture(r_backdropTexture, texture) end
 end
 
--- Setting 'backdropArtTexture' (string)
+-- Setting group 'backdropArtTexture'
+-- Description: Contains settings related to the orb's backdrop art
+Settings.backdropArtTexture = { _group = true }
+
+-- Setting 'backdropArtTexture.texture' (string)
 -- Description: Name of the texture to use as art behind and around the backdrop
 -- Values: Any valid path to a texture
-Settings.backdropArtTexture = { }
-function Settings.backdropArtTexture.apply(orb, backdropArtTexture)
+Settings.backdropArtTexture.texture = { }
+function Settings.backdropArtTexture.texture.apply(orb, texture)
     local r_backdropArtTexture = orb.regions.backdropArtTexture
-    if r_backdropArtTexture ~= nil then ApplyTexture(r_backdropArtTexture, backdropArtTexture) end
+    if r_backdropArtTexture ~= nil then ApplyTexture(r_backdropArtTexture, texture) end
 end
 
--- Setting 'fillTexture' (string)
+-- Setting group 'fillTexture'
+-- Description: Contains settings related to the orb's fill
+Settings.fillTexture = { _group = true }
+
+-- Setting 'fillTexture.texture' (string)
 -- Description: Name of the texture to use for the fill
 -- Values: Any valid path to a texture
-Settings.fillTexture = { }
-function Settings.fillTexture.apply(orb, fillTexture)
+Settings.fillTexture.texture = { }
+function Settings.fillTexture.texture.apply(orb, texture)
     local r_fillTexture = orb.regions.fillTexture
-    if r_fillTexture ~= nil then ApplyTexture(r_fillTexture, fillTexture) end
+    if r_fillTexture ~= nil then ApplyTexture(r_fillTexture, texture) end
 end
 
--- Setting 'borderTexture' (string)
+-- Setting group 'borderTexture'
+-- Description: Contains settings related to the orb's border
+Settings.borderTexture = { _group = true }
+
+-- Setting 'borderTexture.texture' (string)
 -- Description: Name of the texture to use as a border
 -- Values: Any valid path to a texture
-Settings.borderTexture = { }
-function Settings.borderTexture.apply(orb, borderTexture)
+Settings.borderTexture.texture = { }
+function Settings.borderTexture.texture.apply(orb, texture)
     local r_borderTexture = orb.regions.borderTexture
-    if r_borderTexture ~= nil then ApplyTexture(r_borderTexture, borderTexture) end
+    if r_borderTexture ~= nil then ApplyTexture(r_borderTexture, texture) end
 end
 
--- Setting 'borderArtTexture' (string)
+-- Setting group 'borderArtTexture'
+-- Description: Contains settings related to the orb's border art
+Settings.borderArtTexture = { _group = true }
+
+-- Setting 'borderArtTexture.texture' (string)
 -- Description: Name of the texture to use as border artwork
 -- Values: Any valid path to a texture
-Settings.borderArtTexture = { }
-function Settings.borderArtTexture.apply(orb, borderArtTexture)
+Settings.borderArtTexture.texture = { }
+function Settings.borderArtTexture.texture.apply(orb, texture)
     local r_borderArtTexture = orb.regions.borderArtTexture
-    if r_borderArtTexture ~= nil then ApplyTexture(r_borderArtTexture, borderArtTexture) end
+    if r_borderArtTexture ~= nil then ApplyTexture(r_borderArtTexture, texture) end
 end
 
 -- ============================================================================
@@ -490,8 +531,8 @@ function Orb:CreateOrbBackdropTexture()
         r_backdropTexture:SetAllPoints(self)
         r_backdropTexture:SetDrawLayer('BACKGROUND', 0)
         r_backdropTexture:SetVertexColor(0, 0, 0, 1) -- TODO: remove
-        local backdropTexture = self.backdropTexture
-        if backdropTexture ~= nil then ApplyTexture(r_backdropTexture, backdropTexture) end
+        local texture = self.backdropTexture.texture
+        if texture ~= nil then ApplyTexture(r_backdropTexture, texture) end
         self.regions.backdropTexture = r_backdropTexture
     end
 end
@@ -501,8 +542,8 @@ function Orb:CreateOrbBackdropArtTexture()
         local r_backdropArtTexture = self:CreateTexture()
         r_backdropArtTexture:SetAllPoints(self)
         r_backdropArtTexture:SetDrawLayer('BACKGROUND', -1)
-        local backdropArtTexture = self.backdropArtTexture
-        if backdropArtTexture ~= nil then ApplyTexture(r_backdropArtTexture, backdropArtTexture) end
+        local texture = self.backdropArtTexture.texture
+        if texture ~= nil then ApplyTexture(r_backdropArtTexture, texture) end
         self.regions.backdropArtTexture = r_backdropArtTexture
     end
 end
@@ -511,8 +552,8 @@ function Orb:CreateOrbFillTexture()
     if self.regions.fillTexture == nil then
         local r_fillTexture = self:CreateTexture()
         r_fillTexture:SetDrawLayer('ARTWORK', 0)
-        local fillTexture = self.fillTexture
-        if fillTexture ~= nil then ApplyTexture(r_fillTexture, fillTexture) end
+        local texture = self.fillTexture.texture
+        if texture ~= nil then ApplyTexture(r_fillTexture, texture) end
         self.regions.fillTexture = r_fillTexture
         self:SetFillTextureAnchors()
     end
@@ -546,8 +587,8 @@ function Orb:CreateOrbBorderTexture()
         local r_borderTexture = self:CreateTexture()
         r_borderTexture:SetAllPoints(self)
         r_borderTexture:SetDrawLayer('ARTWORK', 1)
-        local borderTexture = self.borderTexture
-        if borderTexture ~= nil then ApplyTexture(r_borderTexture, borderTexture) end
+        local texture = self.borderTexture.texture
+        if texture ~= nil then ApplyTexture(r_borderTexture, texture) end
         self.regions.borderTexture = r_borderTexture
     end
 end
@@ -557,8 +598,8 @@ function Orb:CreateOrbBorderArtTexture()
         local r_borderArtTexture = self:CreateTexture()
         r_borderArtTexture:SetAllPoints(self)
         r_borderArtTexture:SetDrawLayer('ARTWORK', 2)
-        local borderArtTexture = self.borderArtTexture
-        if borderArtTexture ~= nil then ApplyTexture(r_borderArtTexture, borderArtTexture) end
+        local texture = self.borderArtTexture.texture
+        if texture ~= nil then ApplyTexture(r_borderArtTexture, texture) end
         self.regions.borderArtTexture = r_borderArtTexture
     end
 end

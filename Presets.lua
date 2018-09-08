@@ -32,10 +32,21 @@ presets['PlayerHealth'] = {
         y = 15,
     },
 
-    backdropTexture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
-    fillTexture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
-    borderTexture = '',
-    borderArtTexture = '',
+    backdropTexture = {
+        texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+    },
+    backdropArtTexture = {
+        texture = '',
+    },
+    fillTexture = {
+        texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+    },
+    borderTexture = {
+        texture = '',
+    },
+    borderArtTexture = {
+        texture = '',
+    },
 }
 
 presets['PlayerPower'] = {
@@ -100,8 +111,19 @@ presets['TargetHealth'] = {
         y = -15,
     },
 
-    backdropTexture = { 0, 0, 0 },
-    fillTexture = { 1, 1, 1 },
-    borderTexture = '',
-    borderArtTexture = '',
+    backdropTexture = {
+        texture = { 0, 0, 0 },
+    },
+    backdropArtTexture = {
+        texture = '',
+    },
+    fillTexture = {
+        texture = { 1, 1, 1 },
+    },
+    borderTexture = {
+        texture = '',
+    },
+    borderArtTexture = {
+        texture = '',
+    },
 }
