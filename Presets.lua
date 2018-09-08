@@ -3,6 +3,7 @@
 -- ----------------------------------------------------------------------------
 --  A. Player
 --  B. Pet
+--  C. Target
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -20,7 +21,8 @@ presets['PlayerHealth'] = {
 
     unit = 'player',
     resource = 'health',
-    style = 'simple',
+    style = 'orb',
+    direction = 'up',
 
     colorStyle = 'resource',
     size = 256,
@@ -29,6 +31,7 @@ presets['PlayerHealth'] = {
         x = 15,
         y = 15,
     },
+
     backdropTexture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
     fillTexture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
     borderTexture = '',
@@ -73,4 +76,32 @@ presets['PetPower'] = {
     resource = 'power',
 
     parent = 'PlayerPower',
+}
+
+-- ============================================================================
+--  C. Target
+-- ============================================================================
+
+presets['TargetHealth'] = {
+    enabled = true,
+    locked = true,
+
+    unit = 'target',
+    resource = 'health',
+    style = 'orb',
+    direction = 'right',
+
+    colorStyle = 'class',
+    size = 64,
+    aspectRatio = 8,
+    anchor = {
+        point = 'TOP',
+        x = 0,
+        y = -15,
+    },
+
+    backdropTexture = { 0, 0, 0 },
+    fillTexture = { 1, 1, 1 },
+    borderTexture = '',
+    borderArtTexture = '',
 }

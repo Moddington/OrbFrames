@@ -15,7 +15,6 @@ local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 local Orb = { }
 
 -- Local values and helper functions
-local mirrored_anchors
 local ApplyTexture
 local MirrorSetting
 local ReadSettings
@@ -74,6 +73,7 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
     -- Default orb settings
     orb.enabled = true
     orb.flipped = false
+    orb.direction = 'up'
     orb.aspectRatio = 1
 
     -- Apply settings
@@ -121,12 +121,19 @@ function Orb:OnShow()
 end
 
 function Orb:OnEvent(event, ...)
-    if string.match(event, '^UNIT_') then
+    if event == UNIT_TARGET then
+        local unitID = ...
+        if unitID == string.gsub(self.unit, 'target$', '') then
+            self:UpdateOrb()
+        end
+    elseif string.match(event, '^UNIT_') then
         -- UNIT_* events
         local unitID = ...
         if unitID == self.unit then
             self:UpdateOrb()
         end
+    elseif event == 'PLAYER_TARGET_CHANGED' then
+        self:UpdateOrb()
     end
 end
 
@@ -143,7 +150,7 @@ end
 function Orb:RegisterOrbEvents()
     self:UnregisterAllEvents()
     local style = self.style
-    if style == 'simple' then
+    if style == 'orb' then
         local resource = self.resource
         if resource == 'health' then
             self:RegisterEvent('UNIT_HEALTH')
@@ -154,6 +161,12 @@ function Orb:RegisterOrbEvents()
             self:RegisterEvent('UNIT_POWER_FREQUENT')
             self:RegisterEvent('UNIT_MAXPOWER')
         end
+    end
+    local unit = self.unit
+    if unit == 'target' or unit == 'playertarget' then
+        self:RegisterEvent('PLAYER_TARGET_CHANGED')
+    elseif unit ~= nil and string.match(unit, 'target$') then
+        self:RegisterEvent('UNIT_TARGET')
     end
 end
 
@@ -170,7 +183,7 @@ end
 
 function Orb:UpdateOrb()
     local style = self.style
-    if style == 'simple' then
+    if style == 'orb' then
         local r_fillTexture = self.regions.fillTexture
         local unit = self.unit
         local resource = self.resource
@@ -190,8 +203,20 @@ function Orb:UpdateOrb()
         end
         if proportion > 0 then
             proportion = math.min(1, proportion)
-            r_fillTexture:SetHeight(self:GetHeight() * proportion)
-            r_fillTexture:SetTexCoord(0, 1, 1 - proportion, 1)
+            local direction = self.direction
+            if direction == 'up' then
+                r_fillTexture:SetHeight(self:GetHeight() * proportion)
+                r_fillTexture:SetTexCoord(0, 1, 1 - proportion, 1)
+            elseif direction == 'down' then
+                r_fillTexture:SetHeight(self:GetHeight() * proportion)
+                r_fillTexture:SetTexCoord(0, 1, 0, proportion)
+            elseif direction == 'left' then
+                r_fillTexture:SetWidth(self:GetWidth() * proportion)
+                r_fillTexture:SetTexCoord(1 - proportion, 1, 0, 1)
+            elseif direction == 'right' then
+                r_fillTexture:SetWidth(self:GetWidth() * proportion)
+                r_fillTexture:SetTexCoord(0, proportion, 0, 1)
+            end
             r_fillTexture:Show()
         else
             r_fillTexture:Hide()
@@ -202,7 +227,7 @@ function Orb:UpdateOrb()
         local colorStyle = self.colorStyle
         local color
         if colorStyle == 'class' then
-            color = colors.classes[UnitClass(unit)]
+            color = colors.classes[select(2, UnitClass(unit))]
         elseif colorStyle == 'resource' then
             if resource == 'health' then
                 color = colors.resources['HEALTH']
@@ -312,16 +337,28 @@ end
 
 -- Setting 'style' (string)
 -- Description: The style used for the orb
--- Values: 'simple' - An orb that fills vertically
+-- Values: 'orb' - A fixed-size element
+-- TODO: 'bar' - A stretchable element
 Settings.style = { }
 function Settings.style.apply(orb, style)
-    if style == 'simple' then
+    if style == 'orb' then
         orb:CreateOrbBackdropTexture()
+        orb:CreateOrbBackdropArtTexture()
         orb:CreateOrbFillTexture()
         orb:CreateOrbBorderTexture()
         orb:CreateOrbBorderArtTexture()
     end
     orb:RegisterOrbEvents()
+end
+
+-- Setting 'direction' (string)
+-- Description: The direction the orb fills in
+-- Values: 'up', 'down', 'left', 'right'
+Settings.direction = { }
+function Settings.direction.apply(orb, direction)
+    if orb.regions.fillTexture then
+        orb:SetFillTextureAnchors()
+    end
 end
 
 -- Setting 'colorStyle' (string)
@@ -387,8 +424,8 @@ end
 --                                    to the orb's parent)
 --         , relativePoint (string) - Point on the relative frame to anchor to
 --                                    (defaults to same as point)
---         , x (number)             - X offset
---         , y (number)             - Y offset
+--         , x (number)             - X offset (defaults to 0)
+--         , y (number)             - Y offset (defaults to 0)
 --         }
 --         nil - Defaults to { point = 'CENTER', }
 -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
@@ -405,6 +442,15 @@ Settings.backdropTexture = { }
 function Settings.backdropTexture.apply(orb, backdropTexture)
     local r_backdropTexture = orb.regions.backdropTexture
     if r_backdropTexture ~= nil then ApplyTexture(r_backdropTexture, backdropTexture) end
+end
+
+-- Setting 'backdropArtTexture' (string)
+-- Description: Name of the texture to use as art behind and around the backdrop
+-- Values: Any valid path to a texture
+Settings.backdropArtTexture = { }
+function Settings.backdropArtTexture.apply(orb, backdropArtTexture)
+    local r_backdropArtTexture = orb.regions.backdropArtTexture
+    if r_backdropArtTexture ~= nil then ApplyTexture(r_backdropArtTexture, backdropArtTexture) end
 end
 
 -- Setting 'fillTexture' (string)
@@ -442,7 +488,7 @@ function Orb:CreateOrbBackdropTexture()
     if self.regions.backdropTexture == nil then
         local r_backdropTexture = self:CreateTexture()
         r_backdropTexture:SetAllPoints(self)
-        r_backdropTexture:SetDrawLayer('BACKGROUND')
+        r_backdropTexture:SetDrawLayer('BACKGROUND', 0)
         r_backdropTexture:SetVertexColor(0, 0, 0, 1) -- TODO: remove
         local backdropTexture = self.backdropTexture
         if backdropTexture ~= nil then ApplyTexture(r_backdropTexture, backdropTexture) end
@@ -450,16 +496,48 @@ function Orb:CreateOrbBackdropTexture()
     end
 end
 
+function Orb:CreateOrbBackdropArtTexture()
+    if self.regions.backdropArtTexture == nil then
+        local r_backdropArtTexture = self:CreateTexture()
+        r_backdropArtTexture:SetAllPoints(self)
+        r_backdropArtTexture:SetDrawLayer('BACKGROUND', -1)
+        local backdropArtTexture = self.backdropArtTexture
+        if backdropArtTexture ~= nil then ApplyTexture(r_backdropArtTexture, backdropArtTexture) end
+        self.regions.backdropArtTexture = r_backdropArtTexture
+    end
+end
+
 function Orb:CreateOrbFillTexture()
     if self.regions.fillTexture == nil then
         local r_fillTexture = self:CreateTexture()
-        r_fillTexture:SetPoint('BOTTOMLEFT')
-        r_fillTexture:SetPoint('BOTTOMRIGHT')
-        r_fillTexture:SetHeight(self:GetHeight())
         r_fillTexture:SetDrawLayer('ARTWORK', 0)
         local fillTexture = self.fillTexture
         if fillTexture ~= nil then ApplyTexture(r_fillTexture, fillTexture) end
         self.regions.fillTexture = r_fillTexture
+        self:SetFillTextureAnchors()
+    end
+end
+
+function Orb:SetFillTextureAnchors()
+    local direction = self.direction
+    local r_fillTexture = self.regions.fillTexture
+    r_fillTexture:ClearAllPoints()
+    if direction == 'up' then
+        r_fillTexture:SetPoint('BOTTOMLEFT')
+        r_fillTexture:SetPoint('BOTTOMRIGHT')
+        r_fillTexture:SetHeight(self:GetHeight())
+    elseif direction == 'down' then
+        r_fillTexture:SetPoint('TOPLEFT')
+        r_fillTexture:SetPoint('TOPRIGHT')
+        r_fillTexture:SetHeight(self:GetHeight())
+    elseif direction == 'left' then
+        r_fillTexture:SetPoint('TOPRIGHT')
+        r_fillTexture:SetPoint('BOTTOMRIGHT')
+        r_fillTexture:SetWidth(self:GetWidth())
+    elseif direction == 'right' then
+        r_fillTexture:SetPoint('TOPLEFT')
+        r_fillTexture:SetPoint('BOTTOMLEFT')
+        r_fillTexture:SetWidth(self:GetWidth())
     end
 end
 
@@ -489,7 +567,7 @@ end
 --  E. Local values and helper functions
 -- ============================================================================
 
-mirrored_anchors = {
+local mirrored_anchors = {
     ['TOPLEFT'] = 'TOPRIGHT',
     ['TOP'] = 'TOP',
     ['TOPRIGHT'] = 'TOPLEFT',
@@ -499,6 +577,13 @@ mirrored_anchors = {
     ['BOTTOMLEFT'] = 'BOTTOMRIGHT',
     ['LEFT'] = 'RIGHT',
     ['CENTER'] = 'CENTER',
+}
+
+local mirrored_directions = {
+    ['up'] = 'up',
+    ['down'] = 'down',
+    ['left'] = 'right',
+    ['right'] = 'left',
 }
 
 function ApplyTexture(r_texture, texture)
@@ -521,6 +606,8 @@ function MirrorSetting(k, v)
         }
     elseif k == 'flipped' then
         return not v
+    elseif k == 'direction' then
+        return mirrored_directions[v]
     else
         return v
     end
