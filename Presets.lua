@@ -19,9 +19,9 @@ presets['PlayerHealth'] = {
     enabled = true,
     locked = true,
 
+    style = 'orb',
     unit = 'player',
     resource = 'health',
-    style = 'orb',
     direction = 'up',
 
     colorStyle = 'resource',
@@ -32,19 +32,19 @@ presets['PlayerHealth'] = {
         y = 15,
     },
 
-    backdropTexture = {
+    backdrop = {
         texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
     },
-    backdropArtTexture = {
+    backdropArt = {
         texture = '',
     },
-    fillTexture = {
+    fill = {
         texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
     },
-    borderTexture = {
+    border = {
         texture = '',
     },
-    borderArtTexture = {
+    borderArt = {
         texture = '',
     },
 }
@@ -111,19 +111,19 @@ presets['TargetHealth'] = {
         y = -15,
     },
 
-    backdropTexture = {
+    backdrop = {
         texture = { 0, 0, 0 },
     },
-    backdropArtTexture = {
+    backdropArt = {
         texture = '',
     },
-    fillTexture = {
+    fill = {
         texture = { 1, 1, 1 },
     },
-    borderTexture = {
+    border = {
         texture = '',
     },
-    borderArtTexture = {
+    borderArt = {
         texture = '',
     },
 }

@@ -71,11 +71,11 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
     orb:SetScript('OnDragStop', orb.OnDragStop)
 
     -- Setting groups
-    orb.backdropTexture = { }
-    orb.backdropArtTexture = { }
-    orb.fillTexture = { }
-    orb.borderTexture = { }
-    orb.borderArtTexture = { }
+    orb.backdrop = { }
+    orb.backdropArt = { }
+    orb.fill = { }
+    orb.border = { }
+    orb.borderArt = { }
 
     -- Default orb settings
     orb.enabled = true
@@ -191,7 +191,7 @@ end
 function Orb:UpdateOrb()
     local style = self.style
     if style == 'orb' then
-        local r_fillTexture = self.regions.fillTexture
+        local fill = self.regions.fill
         local unit = self.unit
         local resource = self.resource
 
@@ -212,21 +212,21 @@ function Orb:UpdateOrb()
             proportion = math.min(1, proportion)
             local direction = self.direction
             if direction == 'up' then
-                r_fillTexture:SetHeight(self:GetHeight() * proportion)
-                r_fillTexture:SetTexCoord(0, 1, 1 - proportion, 1)
+                fill:SetHeight(self:GetHeight() * proportion)
+                fill:SetTexCoord(0, 1, 1 - proportion, 1)
             elseif direction == 'down' then
-                r_fillTexture:SetHeight(self:GetHeight() * proportion)
-                r_fillTexture:SetTexCoord(0, 1, 0, proportion)
+                fill:SetHeight(self:GetHeight() * proportion)
+                fill:SetTexCoord(0, 1, 0, proportion)
             elseif direction == 'left' then
-                r_fillTexture:SetWidth(self:GetWidth() * proportion)
-                r_fillTexture:SetTexCoord(1 - proportion, 1, 0, 1)
+                fill:SetWidth(self:GetWidth() * proportion)
+                fill:SetTexCoord(1 - proportion, 1, 0, 1)
             elseif direction == 'right' then
-                r_fillTexture:SetWidth(self:GetWidth() * proportion)
-                r_fillTexture:SetTexCoord(0, proportion, 0, 1)
+                fill:SetWidth(self:GetWidth() * proportion)
+                fill:SetTexCoord(0, proportion, 0, 1)
             end
-            r_fillTexture:Show()
+            fill:Show()
         else
-            r_fillTexture:Hide()
+            fill:Hide()
         end
 
         -- Update fill color
@@ -243,7 +243,7 @@ function Orb:UpdateOrb()
             end
         end
         if color ~= nil then
-            r_fillTexture:SetVertexColor(unpack(color))
+            fill:SetVertexColor(unpack(color))
         end
     else
         error('Orb has no style')
@@ -263,7 +263,6 @@ end
 -- ============================================================================
 
 local Settings = { }
-local settingOrder = { } -- This value is populated at the end of this section
 
 function Orb:ApplyOrbSettings(settings)
     -- Read orb settings to acquire inherited and default values
@@ -273,28 +272,36 @@ function Orb:ApplyOrbSettings(settings)
     self:SuspendOrbUpdates()
 
     -- Apply settings
-    for _, setting in ipairs(settingOrder) do
-        local fields = Settings[setting]
-        if fields._group then
-            local settingGroup = settings[setting]
-            local selfSettingGroup = self[setting]
-            for setting, fields in pairs(fields) do
-                if not string.match(setting, '^_') then
-                    local value = settingGroup[setting]
-                    if value ~= nil and value ~= selfSettingGroup[setting] then
-                        selfSettingGroup[setting] = value
-                        fields.apply(self, value)
-                    end
-                end
-            end
-        else
-            local value = settings[setting]
-            if value ~= nil and value ~= self[setting] then
-                self[setting] = value
-                fields.apply(self, value)
-            end
+    local function ApplySetting(name, groupName)
+        local settings = settings
+        if groupName then
+            if settings[groupName] == nil then return end
+            settings = settings[groupName]
         end
+        if settings[name] == nil then return end
+        self:ApplyOrbSetting(name, settings[name], groupName)
     end
+
+    ApplySetting('enabled')
+    ApplySetting('locked')
+
+    ApplySetting('style')
+    ApplySetting('unit')
+    ApplySetting('resource')
+
+    ApplySetting('colorStyle')
+    ApplySetting('size')
+    ApplySetting('aspectRatio')
+    ApplySetting('direction')
+    ApplySetting('flipped')
+    ApplySetting('parent')
+    ApplySetting('anchor')
+
+    ApplySetting('texture', 'backdrop')
+    ApplySetting('texture', 'backdropArt')
+    ApplySetting('texture', 'fill')
+    ApplySetting('texture', 'border')
+    ApplySetting('texture', 'borderArt')
 
     -- Resume orb updates
     self:ResumeOrbUpdates()
@@ -303,48 +310,76 @@ function Orb:ApplyOrbSettings(settings)
     self:UpdateOrb()
 end
 
-function Orb:ApplyOrbSetting(setting, value)
-    if value ~= self[setting] then
-        self[setting] = value
-        Settings[setting].apply(self, value)
+function Orb:ApplyOrbSetting(name, value, groupName)
+    local Settings = Settings
+    local settings = self
+    if groupName then
+        if Settings[groupName] == nil then return end
+        settings[groupName] = settings[groupName] or { }
+        settings = settings[groupName]
+        Settings = Settings[groupName]
+    end
+    if value ~= settings[name] then
+        settings[name] = value
+        Settings[name].apply(self, value)
     end
 end
 
 -- Setting 'enabled' (boolean)
 -- Description: Whether the orb is enabled or disabled
-Settings.enabled = { }
-function Settings.enabled.apply(self, enabled)
-    if enabled then
-        self:ResumeOrbUpdates()
-        self:Show()
-    else
-        self:Hide()
-        self:SuspendOrbUpdates()
-    end
-end
+Settings.enabled = {
+    apply = function(orb, enabled)
+        if enabled then
+            orb:ResumeOrbUpdates()
+            orb:Show()
+        else
+            orb:Hide()
+            orb:SuspendOrbUpdates()
+        end
+    end,
+}
 
 -- Setting 'locked' (boolean)
 -- Description: Whether the orb is locked in place, or can be repositioned with
 --              the mouse
-Settings.locked = { }
-function Settings.locked.apply(self, locked)
-    if locked then
-        self:RegisterForDrag()
-    else
-        self:RegisterForDrag('LeftButton')
-    end
-end
+Settings.locked = {
+    apply = function(orb, locked)
+        if locked then
+            orb:RegisterForDrag()
+        else
+            orb:RegisterForDrag('LeftButton')
+        end
+    end,
+}
+
+-- Setting 'style' (string)
+-- Description: The style used for the orb
+-- Values: 'orb' - A fixed-size element
+-- TODO: 'bar' - A stretchable element
+Settings.style = {
+    apply = function(orb, style)
+        if style == 'orb' then
+            orb:CreateOrbBackdrop()
+            orb:CreateOrbBackdropArt()
+            orb:CreateOrbFill()
+            orb:CreateOrbBorder()
+            orb:CreateOrbBorderArt()
+        end
+        orb:RegisterOrbEvents()
+    end,
+}
 
 -- Setting 'unit' (string)
 -- Description: Which unit the orb is tracking
 -- Values: Any valid WoW unit name
-Settings.unit = { }
-function Settings.unit.apply(self, unit)
-    self:SetAttribute('unit', unit)
-    SecureUnitButton_OnLoad(self, unit) -- TODO: menuFunc
-    self:RegisterOrbEvents()
-    self:UpdateOrb()
-end
+Settings.unit = {
+    apply = function(orb, unit)
+        orb:SetAttribute('unit', unit)
+        SecureUnitButton_OnLoad(orb, unit) -- TODO: menuFunc
+        orb:RegisterOrbEvents()
+        orb:UpdateOrb()
+    end,
+}
 
 -- Setting 'resource' (string)
 -- Description: Which resource the orb is displaying
@@ -352,93 +387,84 @@ end
 --         'power'  - The unit's primary power type
 --         'empty'  - Always show an empty orb
 --         'full'   - Always show a full orb
-Settings.resource = { }
-function Settings.resource.apply(self, resource)
-    self:RegisterOrbEvents()
-    self:UpdateOrb()
-end
-
--- Setting 'style' (string)
--- Description: The style used for the orb
--- Values: 'orb' - A fixed-size element
--- TODO: 'bar' - A stretchable element
-Settings.style = { }
-function Settings.style.apply(orb, style)
-    if style == 'orb' then
-        orb:CreateOrbBackdropTexture()
-        orb:CreateOrbBackdropArtTexture()
-        orb:CreateOrbFillTexture()
-        orb:CreateOrbBorderTexture()
-        orb:CreateOrbBorderArtTexture()
-    end
-    orb:RegisterOrbEvents()
-end
-
--- Setting 'direction' (string)
--- Description: The direction the orb fills in
--- Values: 'up', 'down', 'left', 'right'
-Settings.direction = { }
-function Settings.direction.apply(orb, direction)
-    if orb.regions.fillTexture then
-        orb:SetFillTextureAnchors()
-    end
-end
+Settings.resource = {
+    apply = function(orb, resource)
+        orb:RegisterOrbEvents()
+        orb:UpdateOrb()
+    end,
+}
 
 -- Setting 'colorStyle' (string)
 -- Description: The method used to choose the color for the orb liquid
 -- Values: 'class'    - The unit's class color
 --         'resource' - The resource's color
-Settings.colorStyle = { }
-function Settings.colorStyle.apply(orb, colorStyle)
-    orb:UpdateOrb()
-end
+Settings.colorStyle = {
+    apply = function(orb, colorStyle)
+        orb:UpdateOrb()
+    end,
+}
 
 -- Setting 'size' (number)
 -- Description: The vertical size of the orb
-Settings.size = { }
-function Settings.size.apply(orb, size)
-    local aspectRatio = orb.aspectRatio
-    if aspectRatio ~= nil then
-        orb:SetWidth(size * aspectRatio)
-        orb:SetHeight(size)
-        orb:UpdateOrb()
-    end
-end
+Settings.size = {
+    apply = function(orb, size)
+        local aspectRatio = orb.aspectRatio
+        if aspectRatio ~= nil then
+            orb:SetWidth(size * aspectRatio)
+            orb:SetHeight(size)
+            orb:UpdateOrb()
+        end
+    end,
+}
 
 -- Setting 'aspectRatio' (number)
 -- Description: The ratio between the orb's height and its width
-Settings.aspectRatio = { }
-function Settings.aspectRatio.apply(orb, aspectRatio)
-    local size = orb.size
-    if size ~= nil then
-        orb:SetWidth(size * aspectRatio)
-        orb:SetHeight(size)
-        orb:UpdateOrb()
-    end
-end
+Settings.aspectRatio = {
+    apply = function(orb, aspectRatio)
+        local size = orb.size
+        if size ~= nil then
+            orb:SetWidth(size * aspectRatio)
+            orb:SetHeight(size)
+            orb:UpdateOrb()
+        end
+    end,
+}
+
+-- Setting 'direction' (string)
+-- Description: The direction the orb fills in
+-- Values: 'up', 'down', 'left', 'right'
+Settings.direction = {
+    apply = function(orb, direction)
+        if orb.regions.fill then
+            orb:SetFillAnchors()
+        end
+    end,
+}
 
 -- Setting 'flipped' (boolean)
 -- Description: Whether the orb is flipped horizontally
-Settings.flipped = { }
-function Settings.flipped.apply(orb, flipped)
-    orb:UpdateOrb()
-end
+Settings.flipped = {
+    apply = function(orb, flipped)
+        orb:UpdateOrb()
+    end,
+}
 
 -- Setting 'parent' (string)
 -- Description: Which orb, if any, to be parented to
 -- Values: Any valid orb name
 --         nil - Parent to UIParent instead
 -- TODO: allow parenting to any frame
-Settings.parent = { }
-function Settings.parent.apply(orb, parent)
-    if parent == nil then
-        parent = UIParent
-    else
-        parent = OrbFrames.orbs[parent]
-    end
-    orb:SetParent(parent)
-    orb:SetOrbAnchors()
-end
+Settings.parent = {
+    apply = function(orb, parent)
+        if parent == nil then
+            parent = UIParent
+        else
+            parent = OrbFrames.orbs[parent]
+        end
+        orb:SetParent(parent)
+        orb:SetOrbAnchors()
+    end,
+}
 
 -- Setting 'anchor' (table)
 -- Description: An anchor used to position the orb
@@ -453,171 +479,172 @@ end
 --         nil - Defaults to { point = 'CENTER', }
 -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
 --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
-Settings.anchor = { }
-function Settings.anchor.apply(orb, anchor)
-    orb:SetOrbAnchors()
-end
+Settings.anchor = {
+    apply = function(orb, anchor)
+        orb:SetOrbAnchors()
+    end,
+}
 
--- Setting group 'backdropTexture'
+-- Setting group 'backdrop'
 -- Description: Contains settings related to the orb's backdrop
-Settings.backdropTexture = { _group = true }
+Settings.backdrop = {
 
--- Setting 'backdropTexture.texture' (string)
--- Description: Name of the texture to use as a backdrop
--- Values: Any valid path to a texture
-Settings.backdropTexture.texture = { }
-function Settings.backdropTexture.texture.apply(orb, texture)
-    local r_backdropTexture = orb.regions.backdropTexture
-    if r_backdropTexture ~= nil then ApplyTexture(r_backdropTexture, texture) end
-end
+    -- Setting 'texture' (string)
+    -- Description: Name of the texture to use as a backdrop
+    -- Values: Any valid path to a texture
+    texture = {
+        apply = function(orb, texture)
+            local backdrop = orb.regions.backdrop
+            if backdrop ~= nil then ApplyTexture(backdrop, texture) end
+        end,
+    },
 
--- Setting group 'backdropArtTexture'
+}
+
+-- Setting group 'backdropArt'
 -- Description: Contains settings related to the orb's backdrop art
-Settings.backdropArtTexture = { _group = true }
+Settings.backdropArt = {
 
--- Setting 'backdropArtTexture.texture' (string)
--- Description: Name of the texture to use as art behind and around the backdrop
--- Values: Any valid path to a texture
-Settings.backdropArtTexture.texture = { }
-function Settings.backdropArtTexture.texture.apply(orb, texture)
-    local r_backdropArtTexture = orb.regions.backdropArtTexture
-    if r_backdropArtTexture ~= nil then ApplyTexture(r_backdropArtTexture, texture) end
-end
+    -- Setting 'texture' (string)
+    -- Description: Name of the texture to use as art behind and around the backdrop
+    -- Values: Any valid path to a texture
+    texture = {
+        apply = function(orb, texture)
+            local backdropArt = orb.regions.backdropArt
+            if backdropArt ~= nil then ApplyTexture(backdropArt, texture) end
+        end,
+    },
 
--- Setting group 'fillTexture'
+}
+
+-- Setting group 'fill'
 -- Description: Contains settings related to the orb's fill
-Settings.fillTexture = { _group = true }
+Settings.fill = {
 
--- Setting 'fillTexture.texture' (string)
--- Description: Name of the texture to use for the fill
--- Values: Any valid path to a texture
-Settings.fillTexture.texture = { }
-function Settings.fillTexture.texture.apply(orb, texture)
-    local r_fillTexture = orb.regions.fillTexture
-    if r_fillTexture ~= nil then ApplyTexture(r_fillTexture, texture) end
-end
+    -- Setting 'texture' (string)
+    -- Description: Name of the texture to use for the fill
+    -- Values: Any valid path to a texture
+    texture = {
+        apply = function(orb, texture)
+            local fill = orb.regions.fill
+            if fill ~= nil then ApplyTexture(fill, texture) end
+        end,
+    },
 
--- Setting group 'borderTexture'
+}
+
+-- Setting group 'border'
 -- Description: Contains settings related to the orb's border
-Settings.borderTexture = { _group = true }
+Settings.border = {
 
--- Setting 'borderTexture.texture' (string)
--- Description: Name of the texture to use as a border
--- Values: Any valid path to a texture
-Settings.borderTexture.texture = { }
-function Settings.borderTexture.texture.apply(orb, texture)
-    local r_borderTexture = orb.regions.borderTexture
-    if r_borderTexture ~= nil then ApplyTexture(r_borderTexture, texture) end
-end
+    -- Setting 'texture' (string)
+    -- Description: Name of the texture to use as a border
+    -- Values: Any valid path to a texture
+    texture = {
+        apply = function(orb, texture)
+            local border = orb.regions.border
+            if border ~= nil then ApplyTexture(border, texture) end
+        end,
+    },
 
--- Setting group 'borderArtTexture'
+}
+
+-- Setting group 'borderArt'
 -- Description: Contains settings related to the orb's border art
-Settings.borderArtTexture = { _group = true }
+Settings.borderArt = {
 
--- Setting 'borderArtTexture.texture' (string)
--- Description: Name of the texture to use as border artwork
--- Values: Any valid path to a texture
-Settings.borderArtTexture.texture = { }
-function Settings.borderArtTexture.texture.apply(orb, texture)
-    local r_borderArtTexture = orb.regions.borderArtTexture
-    if r_borderArtTexture ~= nil then ApplyTexture(r_borderArtTexture, texture) end
-end
+    -- Setting 'texture' (string)
+    -- Description: Name of the texture to use as border artwork
+    -- Values: Any valid path to a texture
+    texture = {
+        apply = function(orb, texture)
+            local borderArt = orb.regions.borderArt
+            if borderArt ~= nil then ApplyTexture(borderArt, texture) end
+        end,
+    },
 
--- Optimize the loading order of settings
-do
-    local settingPriorities = {
-        -- Positive values push to the front of the list, negative to the back
-        style = 100,
-        enabled = -100,
-    }
-    for setting, _ in pairs(Settings) do
-        table.insert(settingOrder, setting)
-    end
-    table.sort(settingOrder, function(l, r)
-        return (settingPriorities[l] or 0) > (settingPriorities[r] or 0)
-    end)
-end
+}
 
 -- ============================================================================
 --  D. Regions
 -- ============================================================================
 
-function Orb:CreateOrbBackdropTexture()
-    if self.regions.backdropTexture == nil then
-        local r_backdropTexture = self:CreateTexture()
-        r_backdropTexture:SetAllPoints(self)
-        r_backdropTexture:SetDrawLayer('BACKGROUND', 0)
-        r_backdropTexture:SetVertexColor(0, 0, 0, 1) -- TODO: remove
-        local texture = self.backdropTexture.texture
-        if texture ~= nil then ApplyTexture(r_backdropTexture, texture) end
-        self.regions.backdropTexture = r_backdropTexture
+function Orb:CreateOrbBackdrop()
+    if self.regions.backdrop == nil then
+        local backdrop = self:CreateTexture()
+        backdrop:SetAllPoints(self)
+        backdrop:SetDrawLayer('BACKGROUND', 0)
+        backdrop:SetVertexColor(0, 0, 0, 1) -- TODO: remove
+        local texture = self.backdrop.texture
+        if texture ~= nil then ApplyTexture(backdrop, texture) end
+        self.regions.backdrop = backdrop
     end
 end
 
-function Orb:CreateOrbBackdropArtTexture()
-    if self.regions.backdropArtTexture == nil then
-        local r_backdropArtTexture = self:CreateTexture()
-        r_backdropArtTexture:SetAllPoints(self)
-        r_backdropArtTexture:SetDrawLayer('BACKGROUND', -1)
-        local texture = self.backdropArtTexture.texture
-        if texture ~= nil then ApplyTexture(r_backdropArtTexture, texture) end
-        self.regions.backdropArtTexture = r_backdropArtTexture
+function Orb:CreateOrbBackdropArt()
+    if self.regions.backdropArt == nil then
+        local backdropArt = self:CreateTexture()
+        backdropArt:SetAllPoints(self)
+        backdropArt:SetDrawLayer('BACKGROUND', -1)
+        local texture = self.backdropArt.texture
+        if texture ~= nil then ApplyTexture(backdropArt, texture) end
+        self.regions.backdropArt = backdropArt
     end
 end
 
-function Orb:CreateOrbFillTexture()
-    if self.regions.fillTexture == nil then
-        local r_fillTexture = self:CreateTexture()
-        r_fillTexture:SetDrawLayer('ARTWORK', 0)
-        local texture = self.fillTexture.texture
-        if texture ~= nil then ApplyTexture(r_fillTexture, texture) end
-        self.regions.fillTexture = r_fillTexture
-        self:SetFillTextureAnchors()
+function Orb:CreateOrbFill()
+    if self.regions.fill == nil then
+        local fill = self:CreateTexture()
+        fill:SetDrawLayer('ARTWORK', 0)
+        local texture = self.fill.texture
+        if texture ~= nil then ApplyTexture(fill, texture) end
+        self.regions.fill = fill
+        self:SetFillAnchors()
     end
 end
 
-function Orb:SetFillTextureAnchors()
+function Orb:SetFillAnchors()
     local direction = self.direction
-    local r_fillTexture = self.regions.fillTexture
-    r_fillTexture:ClearAllPoints()
+    local fill = self.regions.fill
+    fill:ClearAllPoints()
     if direction == 'up' then
-        r_fillTexture:SetPoint('BOTTOMLEFT')
-        r_fillTexture:SetPoint('BOTTOMRIGHT')
-        r_fillTexture:SetHeight(self:GetHeight())
+        fill:SetPoint('BOTTOMLEFT')
+        fill:SetPoint('BOTTOMRIGHT')
+        fill:SetHeight(self:GetHeight())
     elseif direction == 'down' then
-        r_fillTexture:SetPoint('TOPLEFT')
-        r_fillTexture:SetPoint('TOPRIGHT')
-        r_fillTexture:SetHeight(self:GetHeight())
+        fill:SetPoint('TOPLEFT')
+        fill:SetPoint('TOPRIGHT')
+        fill:SetHeight(self:GetHeight())
     elseif direction == 'left' then
-        r_fillTexture:SetPoint('TOPRIGHT')
-        r_fillTexture:SetPoint('BOTTOMRIGHT')
-        r_fillTexture:SetWidth(self:GetWidth())
+        fill:SetPoint('TOPRIGHT')
+        fill:SetPoint('BOTTOMRIGHT')
+        fill:SetWidth(self:GetWidth())
     elseif direction == 'right' then
-        r_fillTexture:SetPoint('TOPLEFT')
-        r_fillTexture:SetPoint('BOTTOMLEFT')
-        r_fillTexture:SetWidth(self:GetWidth())
+        fill:SetPoint('TOPLEFT')
+        fill:SetPoint('BOTTOMLEFT')
+        fill:SetWidth(self:GetWidth())
     end
 end
 
-function Orb:CreateOrbBorderTexture()
-    if self.regions.borderTexture == nil then
-        local r_borderTexture = self:CreateTexture()
-        r_borderTexture:SetAllPoints(self)
-        r_borderTexture:SetDrawLayer('ARTWORK', 1)
-        local texture = self.borderTexture.texture
-        if texture ~= nil then ApplyTexture(r_borderTexture, texture) end
-        self.regions.borderTexture = r_borderTexture
+function Orb:CreateOrbBorder()
+    if self.regions.border == nil then
+        local border = self:CreateTexture()
+        border:SetAllPoints(self)
+        border:SetDrawLayer('ARTWORK', 1)
+        local texture = self.border.texture
+        if texture ~= nil then ApplyTexture(border, texture) end
+        self.regions.border = border
     end
 end
 
-function Orb:CreateOrbBorderArtTexture()
-    if self.regions.borderArtTexture == nil then
-        local r_borderArtTexture = self:CreateTexture()
-        r_borderArtTexture:SetAllPoints(self)
-        r_borderArtTexture:SetDrawLayer('ARTWORK', 2)
-        local texture = self.borderArtTexture.texture
-        if texture ~= nil then ApplyTexture(r_borderArtTexture, texture) end
-        self.regions.borderArtTexture = r_borderArtTexture
+function Orb:CreateOrbBorderArt()
+    if self.regions.borderArt == nil then
+        local borderArt = self:CreateTexture()
+        borderArt:SetAllPoints(self)
+        borderArt:SetDrawLayer('ARTWORK', 2)
+        local texture = self.borderArt.texture
+        if texture ~= nil then ApplyTexture(borderArt, texture) end
+        self.regions.borderArt = borderArt
     end
 end
 
@@ -625,7 +652,7 @@ end
 --  E. Local values and helper functions
 -- ============================================================================
 
-local mirrored_anchors = {
+local mirroredAnchors = {
     ['TOPLEFT'] = 'TOPRIGHT',
     ['TOP'] = 'TOP',
     ['TOPRIGHT'] = 'TOPLEFT',
@@ -637,73 +664,163 @@ local mirrored_anchors = {
     ['CENTER'] = 'CENTER',
 }
 
-local mirrored_directions = {
+local mirroredDirections = {
     ['up'] = 'up',
     ['down'] = 'down',
     ['left'] = 'right',
     ['right'] = 'left',
 }
 
-function ApplyTexture(r_texture, texture)
+function ApplyTexture(region, texture)
     if type(texture) == 'string' then
-        r_texture:SetTexture(texture)
+        region:SetTexture(texture)
     elseif type(texture) == 'table' then
-        r_texture:SetColorTexture(unpack(texture))
+        region:SetColorTexture(unpack(texture))
     end
 end
 
-function MirrorSetting(k, v)
-    if v == nil then return end
-    if k == 'anchor' then
+function MirrorSetting(name, value, groupName)
+    if value == nil then return end
+    if groupName == nil then
+        if name == 'anchor' then
         return {
-            point = mirrored_anchors[v.point],
-            relativeTo = v.relativeTo,
-            relativePoint = mirrored_anchors[v.relativePoint],
-            x = -v.x,
-            y = v.y,
+                point = mirroredAnchors[value.point],
+                relativeTo = value.relativeTo,
+                relativePoint = mirroredAnchors[value.relativePoint],
+                x = -value.x,
+                y = value.y,
         }
-    elseif k == 'flipped' then
-        return not v
-    elseif k == 'direction' then
-        return mirrored_directions[v]
+        elseif name == 'flipped' then
+            return not value
+        elseif name == 'direction' then
+            return mirroredDirections[value]
+        else
+            return value
+        end
     else
-        return v
+        return value
     end
 end
 
 function ReadSettings(settings)
-    local read_settings = { }
-    for setting, value in pairs(settings) do
-        read_settings[setting] = value
+    local readSettings = { }
+
+    -- Copy from the settings table
+    local function CopySetting(name, groupName)
+        local readSettings = readSettings
+        local settings = settings
+        if groupName then
+            if settings[groupName] == nil then return end
+            readSettings[groupName] = readSettings[groupName] or { }
+            readSettings = readSettings[groupName]
+            settings = settings[groupName]
+        end
+        if settings[name] == nil then return end
+        readSettings[name] = settings[name]
     end
 
-    -- Prevent these settings from being inherited
-    if read_settings.enabled == nil then read_settings.enabled = false end
-    if read_settings.locked == nil then read_settings.locked = false end
+    CopySetting('enabled')
+    CopySetting('locked')
+
+    CopySetting('style')
+    CopySetting('unit')
+    CopySetting('resource')
+
+    CopySetting('colorStyle')
+    CopySetting('size')
+    CopySetting('aspectRatio')
+    CopySetting('direction')
+    CopySetting('flipped')
+    CopySetting('parent')
+    CopySetting('anchor')
+
+    CopySetting('texture', 'backdrop')
+    CopySetting('texture', 'backdropArt')
+    CopySetting('texture', 'fill')
+    CopySetting('texture', 'border')
+    CopySetting('texture', 'borderArt')
 
     -- Fetch inherited settings
-    local inherit_name = settings.inherit
+    local inheritName = settings.inherit
     local inheritStyle = settings.inheritStyle or 'copy'
-    if inherit_name ~= nil then
-        local inherit_settings = OrbFrames.db.profile.orbs[inherit_name]
-        if inherit_settings == nil then error('Inherited orb "'..inherit_name..'" does not exist') end
-        inherit_settings = ReadSettings(inherit_settings)
-        if inheritStyle == 'copy' then
-            for setting, value in pairs(inherit_settings) do
-                if read_settings[setting] == nil then
-                    read_settings[setting] = value
-                end
+    if inheritName ~= nil then
+        local inheritSettings = OrbFrames.db.profile.orbs[inheritName]
+        if inheritSettings == nil then error('Inherited orb "'..inheritName..'" does not exist') end
+        inheritSettings = ReadSettings(inheritSettings)
+
+        local function InheritSetting(name, groupName)
+            local readSettings = readSettings
+            local inheritSettings = inheritSettings
+            if groupName then
+                if inheritSettings[groupName] == nil then return end
+                readSettings[groupName] = readSettings[groupName] or { }
+                readSettings = readSettings[groupName]
+                inheritSettings = inheritSettings[groupName]
             end
-        elseif inheritStyle == 'mirror' then
-            for setting, value in pairs(inherit_settings) do
-                if read_settings[setting] == nil then
-                    read_settings[setting] = MirrorSetting(setting, value)
+            if inheritSettings[name] == nil then return end
+            if readSettings[name] == nil then
+                if inheritStyle == 'copy' then
+                    readSettings[name] = inheritSettings[name]
+                elseif inheritStyle == 'mirror' then
+                    readSettings[name] = MirrorSetting(name, inheritSettings[name], groupName)
                 end
             end
         end
+
+        --InheritSetting('enabled')
+        if inheritStyle == 'copy' then InheritSetting('locked') end
+
+        InheritSetting('style')
+        InheritSetting('unit')
+        InheritSetting('resource')
+
+        InheritSetting('colorStyle')
+        InheritSetting('size')
+        InheritSetting('aspectRatio')
+        InheritSetting('direction')
+        InheritSetting('flipped')
+        InheritSetting('parent')
+        InheritSetting('anchor')
+
+        InheritSetting('texture', 'backdrop')
+        InheritSetting('texture', 'backdropArt')
+        InheritSetting('texture', 'fill')
+        InheritSetting('texture', 'border')
+        InheritSetting('texture', 'borderArt')
     end
 
-    -- TODO: applying default settings would go here
+    -- Supply missing settings with defaults
+    local function DefaultSetting(name, default, groupName)
+        local readSettings = readSettings
+        if groupName then
+            readSettings[groupName] = readSettings[groupName] or { }
+            readSettings = readSettings[groupName]
+        end
+        if readSettings[name] == nil then
+            readSettings[name] = default
+        end
+    end
 
-    return read_settings
+    DefaultSetting('enabled', true)
+    DefaultSetting('locked', true)
+
+    DefaultSetting('style', 'orb')
+    DefaultSetting('unit', 'player')
+    DefaultSetting('resource', 'health')
+
+    DefaultSetting('colorStyle', 'resource')
+    DefaultSetting('size', 128)
+    DefaultSetting('aspectRatio', 1)
+    DefaultSetting('direction', 'up')
+    DefaultSetting('flipped', false)
+    DefaultSetting('parent', nil)
+    DefaultSetting('anchor', nil)
+
+    DefaultSetting('texture', '', 'backdrop')
+    DefaultSetting('texture', '', 'backdropArt')
+    DefaultSetting('texture', '', 'fill')
+    DefaultSetting('texture', '', 'border')
+    DefaultSetting('texture', '', 'borderArt')
+
+    return readSettings
 end
