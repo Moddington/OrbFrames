@@ -47,6 +47,22 @@ presets['PlayerHealth'] = {
     borderArt = {
         texture = '',
     },
+
+    labels = {
+        ['resource'] = {
+            text = '{resourceName:titlecase}: {resource}/{resourceMax} ({resourcePercent}%)',
+            font = 'GameFontWhite',
+            anchor = {
+                point = 'BOTTOMLEFT',
+                relativePoint = 'TOPLEFT',
+                x = 5,
+                y = 5,
+            },
+            width = 0,
+            justifyH = 'LEFT',
+            justifyV = 'TOP',
+        },
+    },
 }
 
 presets['PlayerPower'] = {
@@ -75,6 +91,12 @@ presets['PetHealth'] = {
         point = 'BOTTOMRIGHT',
         x = 32,
         y = 0,
+    },
+
+    labels = {
+        ['resource'] = {
+            showOnlyOnHover = true,
+        },
     },
 }
 
@@ -125,5 +147,44 @@ presets['TargetHealth'] = {
     },
     borderArt = {
         texture = '',
+    },
+
+    labels = {
+        ['name'] = {
+            text = '{name:titlecase}',
+            font = 'GameFontWhite',
+            anchor = {
+                point = 'TOP',
+                x = 0,
+                y = -10,
+            },
+            width = 0,
+            justifyH = 'CENTER',
+            justifyV = 'TOP',
+        },
+        ['health'] = {
+            text = 'Health: {health}/{healthMax} ({healthPercent}%)',
+            font = 'GameFontWhite',
+            anchor = {
+                point = 'LEFT',
+                x = 10,
+                y = 0,
+            },
+            width = 0,
+            justifyH = 'LEFT',
+            justifyV = 'MIDDLE',
+        },
+        ['power'] = {
+            text = 'Power: {power}/{powerMax} ({powerPercent}%)',
+            font = 'GameFontWhite',
+            anchor = {
+                point = 'RIGHT',
+                x = -10,
+                y = 0,
+            },
+            width = 0,
+            justifyH = 'RIGHT',
+            justifyV = 'MIDDLE',
+        },
     },
 }

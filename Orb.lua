@@ -15,9 +15,13 @@ local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 local Orb = { }
 
 -- Local values and helper functions
+local mirroredAnchors
+local mirroredAlignments
+local mirroredDirections
 local ApplyTexture
 local MirrorSetting
 local ReadSettings
+local TraverseSettings
 
 -- ============================================================================
 --  A. Orb creation and management
@@ -61,6 +65,7 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
     -- Initialize orb
     RegisterUnitWatch(orb)
     orb.regions = { }
+    orb.labels = { }
     orb:EnableMouse(true)
     orb:SetMovable(true)
     orb:SetClampedToScreen(true)
@@ -77,7 +82,7 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
     orb.border = { }
     orb.borderArt = { }
 
-    -- Default orb settings
+    -- Default orb settings necessary for clean loading
     orb.enabled = true
     orb.flipped = false
     orb.direction = 'up'
@@ -188,6 +193,15 @@ function Orb:SetOrbAnchors()
     self:SetPoint(anchor.point, relativeTo, relativePoint, anchor.x, anchor.y)
 end
 
+function Orb:SetOrbLabelAnchors(label)
+    label:ClearAllPoints()
+    local anchor = label.anchor
+    if anchor == nil then anchor = { point = 'CENTER' } end
+    local relativePoint = anchor.relativePoint
+    if relativePoint == nil then relativePoint = anchor.point end
+    label:SetPoint(anchor.point, self, relativePoint, anchor.x, anchor.y)
+end
+
 function Orb:UpdateOrb()
     local style = self.style
     if style == 'orb' then
@@ -248,6 +262,86 @@ function Orb:UpdateOrb()
     else
         error('Orb has no style')
     end
+
+    -- Update labels
+    for labelName, label in pairs(self.labels) do
+        self:UpdateOrbLabel(label)
+    end
+end
+
+function Orb:UpdateOrbLabel(label)
+    -- TODO: only update the text when necessary
+    -- this will require the completion of the analysis step
+    -- in Settings.labels.text._apply()
+    local unit = self.unit
+    local resource = self.resource
+    local text = label.text
+    local formattedText = ''
+    local i, j = string.find(text, '{[^}]*}')
+    local prev_j = 0
+    while i ~= nil do
+        local tags = { }
+        for tag in string.gmatch(string.sub(text, i+1, j-1), '[^:]*') do
+            table.insert(tags, tag)
+        end
+        local tagText = ''
+        if not UnitExists(unit) then
+            tagText = '-'
+        else
+            if tags[1] == 'class' then
+                tagText = UnitClass(unit)
+            elseif tags[1] == 'name' then
+                tagText = UnitName(unit)
+            elseif tags[1] == 'resourceName' then
+                tagText = resource
+            elseif tags[1] == 'resource' then
+                if resource == 'health' then
+                    tagText = tostring(UnitHealth(unit))
+                elseif resource == 'power' then
+                    tagText = tostring(UnitPower(unit))
+                end
+            elseif tags[1] == 'resourceMax' then
+                if resource == 'health' then
+                    tagText = tostring(UnitHealthMax(unit))
+                elseif resource == 'power' then
+                    tagText = tostring(UnitPowerMax(unit))
+                end
+            elseif tags[1] == 'resourcePercent' then
+                if resource == 'health' then
+                    tagText = tostring(math.floor(UnitHealth(unit) / UnitHealthMax(unit) * 100))
+                elseif resource == 'power' then
+                    tagText = tostring(math.floor(UnitPower(unit) / UnitPowerMax(unit) * 100))
+                end
+            elseif tags[1] == 'health' then
+                tagText = tostring(UnitHealth(unit))
+            elseif tags[1] == 'healthMax' then
+                tagText = tostring(UnitHealthMax(unit))
+            elseif tags[1] == 'healthPercent' then
+                tagText = tostring(math.floor(UnitHealth(unit) / UnitHealthMax(unit) * 100))
+            elseif tags[1] == 'power' then
+                tagText = tostring(UnitPower(unit))
+            elseif tags[1] == 'powerMax' then
+                tagText = tostring(UnitPowerMax(unit))
+            elseif tags[1] == 'powerPercent' then
+                tagText = tostring(math.floor(UnitPower(unit) / UnitPowerMax(unit) * 100))
+            end
+        end
+        table.remove(tags, 1)
+        for n, tag in ipairs(tags) do
+            if tag == 'titlecase' then
+                tagText = string.gsub(" "..tagText, "%W%l", string.upper):sub(2)
+            elseif tag == 'uppercase' then
+                tagText = string.upper(tagText)
+            elseif tag == 'lowercase' then
+                tagText = string.lower(tagText)
+            end
+        end
+        formattedText = formattedText..string.sub(text, prev_j+1, i-1)..tagText
+        prev_j = j
+        i, j = string.find(text, '{[^}]*}', j)
+    end
+    formattedText = formattedText..string.sub(text, prev_j+1)
+    label:SetText(formattedText)
 end
 
 function Orb:SuspendOrbUpdates()
@@ -272,36 +366,44 @@ function Orb:ApplyOrbSettings(settings)
     self:SuspendOrbUpdates()
 
     -- Apply settings
-    local function ApplySetting(name, groupName)
-        local settings = settings
-        if groupName then
-            if settings[groupName] == nil then return end
-            settings = settings[groupName]
+    local function VisitSetting(name, value, schema, iterator)
+        if iterator.settings[name] ~= value then
+            iterator.settings[name] = value
+            schema._apply(self, value)
         end
-        if settings[name] == nil then return end
-        self:ApplyOrbSetting(name, settings[name], groupName)
     end
-
-    ApplySetting('enabled')
-    ApplySetting('locked')
-
-    ApplySetting('style')
-    ApplySetting('unit')
-    ApplySetting('resource')
-
-    ApplySetting('colorStyle')
-    ApplySetting('size')
-    ApplySetting('aspectRatio')
-    ApplySetting('direction')
-    ApplySetting('flipped')
-    ApplySetting('parent')
-    ApplySetting('anchor')
-
-    ApplySetting('texture', 'backdrop')
-    ApplySetting('texture', 'backdropArt')
-    ApplySetting('texture', 'fill')
-    ApplySetting('texture', 'border')
-    ApplySetting('texture', 'borderArt')
+    local function VisitLabelSetting(name, value, schema, iterator)
+        if iterator.settings[name] ~= value then
+            iterator.settings[name] = value
+            schema._apply(self, iterator.label, value)
+        end
+    end
+    local function Enter(name, iterator)
+        local iterator = table.copy(iterator)
+        iterator.settings[name] = iterator.settings[name] or { }
+        iterator.settings = iterator.settings[name]
+        return iterator
+    end
+    local function EnterLabel(name, iterator)
+        self:AddOrbLabel(name)
+        local iterator = Enter(name, iterator)
+        iterator.label = self.labels[name]
+        return iterator
+    end
+    local function EnterList(name, iterator)
+        local iterator = Enter(name, iterator)
+        if name == 'labels' then
+            iterator.VisitSetting = VisitLabelSetting
+            iterator.EnterListElement = EnterLabel
+        end
+        return iterator
+    end
+    TraverseSettings(settings, Settings, {
+        VisitSetting = VisitSetting,
+        EnterGroup = Enter,
+        EnterList = EnterList,
+        settings = self,
+    })
 
     -- Resume orb updates
     self:ResumeOrbUpdates()
@@ -321,14 +423,33 @@ function Orb:ApplyOrbSetting(name, value, groupName)
     end
     if value ~= settings[name] then
         settings[name] = value
-        Settings[name].apply(self, value)
+        Settings[name]._apply(self, value)
+    end
+end
+
+function Orb:AddOrbLabel(labelName)
+    if self.labels[labelName] then return end
+
+    local label = self:CreateFontString()
+    self.labels[labelName] = label
+
+    label.name = labelName
+end
+
+function Orb:ApplyOrbLabelSetting(labelName, name, value)
+    local label = self.labels[labelName]
+    if value ~= label[name] then
+        label[name] = value
+        Settings.labels[name]._apply(self, label, value)
     end
 end
 
 -- Setting 'enabled' (boolean)
 -- Description: Whether the orb is enabled or disabled
 Settings.enabled = {
-    apply = function(orb, enabled)
+    _priority = -100,
+
+    _apply = function(orb, enabled)
         if enabled then
             orb:ResumeOrbUpdates()
             orb:Show()
@@ -343,7 +464,7 @@ Settings.enabled = {
 -- Description: Whether the orb is locked in place, or can be repositioned with
 --              the mouse
 Settings.locked = {
-    apply = function(orb, locked)
+    _apply = function(orb, locked)
         if locked then
             orb:RegisterForDrag()
         else
@@ -357,7 +478,9 @@ Settings.locked = {
 -- Values: 'orb' - A fixed-size element
 -- TODO: 'bar' - A stretchable element
 Settings.style = {
-    apply = function(orb, style)
+    _priority = 100,
+
+    _apply = function(orb, style)
         if style == 'orb' then
             orb:CreateOrbBackdrop()
             orb:CreateOrbBackdropArt()
@@ -373,7 +496,7 @@ Settings.style = {
 -- Description: Which unit the orb is tracking
 -- Values: Any valid WoW unit name
 Settings.unit = {
-    apply = function(orb, unit)
+    _apply = function(orb, unit)
         orb:SetAttribute('unit', unit)
         SecureUnitButton_OnLoad(orb, unit) -- TODO: menuFunc
         orb:RegisterOrbEvents()
@@ -388,7 +511,7 @@ Settings.unit = {
 --         'empty'  - Always show an empty orb
 --         'full'   - Always show a full orb
 Settings.resource = {
-    apply = function(orb, resource)
+    _apply = function(orb, resource)
         orb:RegisterOrbEvents()
         orb:UpdateOrb()
     end,
@@ -399,7 +522,7 @@ Settings.resource = {
 -- Values: 'class'    - The unit's class color
 --         'resource' - The resource's color
 Settings.colorStyle = {
-    apply = function(orb, colorStyle)
+    _apply = function(orb, colorStyle)
         orb:UpdateOrb()
     end,
 }
@@ -407,7 +530,7 @@ Settings.colorStyle = {
 -- Setting 'size' (number)
 -- Description: The vertical size of the orb
 Settings.size = {
-    apply = function(orb, size)
+    _apply = function(orb, size)
         local aspectRatio = orb.aspectRatio
         if aspectRatio ~= nil then
             orb:SetWidth(size * aspectRatio)
@@ -420,7 +543,7 @@ Settings.size = {
 -- Setting 'aspectRatio' (number)
 -- Description: The ratio between the orb's height and its width
 Settings.aspectRatio = {
-    apply = function(orb, aspectRatio)
+    _apply = function(orb, aspectRatio)
         local size = orb.size
         if size ~= nil then
             orb:SetWidth(size * aspectRatio)
@@ -434,19 +557,27 @@ Settings.aspectRatio = {
 -- Description: The direction the orb fills in
 -- Values: 'up', 'down', 'left', 'right'
 Settings.direction = {
-    apply = function(orb, direction)
-        if orb.regions.fill then
+    _apply = function(orb, direction)
+        if orb.fill then
             orb:SetFillAnchors()
         end
+    end,
+
+    _mirror = function(direction)
+        return mirroredDirections[direction]
     end,
 }
 
 -- Setting 'flipped' (boolean)
 -- Description: Whether the orb is flipped horizontally
 Settings.flipped = {
-    apply = function(orb, flipped)
+    _apply = function(orb, flipped)
         orb:UpdateOrb()
     end,
+
+    _mirror = function(flipped)
+        return not flipped
+    end
 }
 
 -- Setting 'parent' (string)
@@ -455,7 +586,7 @@ Settings.flipped = {
 --         nil - Parent to UIParent instead
 -- TODO: allow parenting to any frame
 Settings.parent = {
-    apply = function(orb, parent)
+    _apply = function(orb, parent)
         if parent == nil then
             parent = UIParent
         else
@@ -480,20 +611,31 @@ Settings.parent = {
 -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
 --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
 Settings.anchor = {
-    apply = function(orb, anchor)
+    _apply = function(orb, anchor)
         orb:SetOrbAnchors()
+    end,
+
+    _mirror = function(anchor)
+        return {
+            point = mirroredAnchors[anchor.point],
+            relativeTo = anchor.relativeTo,
+            relativePoint = mirroredAnchors[anchor.relativePoint],
+            x = -anchor.x,
+            y = anchor.y,
+        }
     end,
 }
 
 -- Setting group 'backdrop'
 -- Description: Contains settings related to the orb's backdrop
 Settings.backdrop = {
+    _type = 'group',
 
     -- Setting 'texture' (string)
     -- Description: Name of the texture to use as a backdrop
     -- Values: Any valid path to a texture
     texture = {
-        apply = function(orb, texture)
+        _apply = function(orb, texture)
             local backdrop = orb.regions.backdrop
             if backdrop ~= nil then ApplyTexture(backdrop, texture) end
         end,
@@ -504,12 +646,13 @@ Settings.backdrop = {
 -- Setting group 'backdropArt'
 -- Description: Contains settings related to the orb's backdrop art
 Settings.backdropArt = {
+    _type = 'group',
 
     -- Setting 'texture' (string)
     -- Description: Name of the texture to use as art behind and around the backdrop
     -- Values: Any valid path to a texture
     texture = {
-        apply = function(orb, texture)
+        _apply = function(orb, texture)
             local backdropArt = orb.regions.backdropArt
             if backdropArt ~= nil then ApplyTexture(backdropArt, texture) end
         end,
@@ -520,12 +663,13 @@ Settings.backdropArt = {
 -- Setting group 'fill'
 -- Description: Contains settings related to the orb's fill
 Settings.fill = {
+    _type = 'group',
 
     -- Setting 'texture' (string)
     -- Description: Name of the texture to use for the fill
     -- Values: Any valid path to a texture
     texture = {
-        apply = function(orb, texture)
+        _apply = function(orb, texture)
             local fill = orb.regions.fill
             if fill ~= nil then ApplyTexture(fill, texture) end
         end,
@@ -536,12 +680,13 @@ Settings.fill = {
 -- Setting group 'border'
 -- Description: Contains settings related to the orb's border
 Settings.border = {
+    _type = 'group',
 
     -- Setting 'texture' (string)
     -- Description: Name of the texture to use as a border
     -- Values: Any valid path to a texture
     texture = {
-        apply = function(orb, texture)
+        _apply = function(orb, texture)
             local border = orb.regions.border
             if border ~= nil then ApplyTexture(border, texture) end
         end,
@@ -552,14 +697,110 @@ Settings.border = {
 -- Setting group 'borderArt'
 -- Description: Contains settings related to the orb's border art
 Settings.borderArt = {
+    _type = 'group',
 
     -- Setting 'texture' (string)
     -- Description: Name of the texture to use as border artwork
     -- Values: Any valid path to a texture
     texture = {
-        apply = function(orb, texture)
+        _apply = function(orb, texture)
             local borderArt = orb.regions.borderArt
             if borderArt ~= nil then ApplyTexture(borderArt, texture) end
+        end,
+    },
+
+}
+
+-- Settings for elements list 'labels'
+-- Description: An orb can have a number of labels on it to provide text display
+Settings.labels = {
+    _type = 'list',
+    _priority = -10,
+
+    -- Setting 'text'
+    -- Description: A format string used to determine the label's text
+    -- Values: TODO
+    text = {
+        _apply = function(orb, label, text)
+            -- TODO: Analyze the format string
+            -- Update the label
+            orb:UpdateOrbLabel(label)
+        end,
+    },
+
+    -- Setting 'font'
+    -- Description: The font object
+    -- Values: Any string that refers to a font object in the global namespace
+    font = {
+        _priority = 10,
+
+        _apply = function(orb, label, font)
+            label:SetFontObject(_G[font]) -- TODO: better font lookup
+        end,
+    },
+
+    -- Setting 'anchor'
+    -- Description: An anchor used to position the label
+    -- Values: { point (string)         - Point on the label to anchor with
+    --         , relativePoint (string) - Point on the orb to anchor to
+    --                                    (defaults to same as point)
+    --         , x (number)             - X offset (defaults to 0)
+    --         , y (number)             - Y offset (defaults to 0)
+    --         }
+    --         nil - Defaults to { point = 'CENTER', }
+    -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
+    --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
+    anchor = {
+        _apply = function(orb, label, anchor)
+            orb:SetOrbLabelAnchors(label)
+        end,
+
+        _mirror = function(anchor)
+            return {
+                point = mirroredAnchors[anchor.point],
+                relativePoint = mirroredAnchors[anchor.relativePoint],
+                x = -anchor.x,
+                y = anchor.y,
+            }
+        end,
+    },
+
+    -- Setting 'width'
+    width = {
+        _apply = function(orb, label, width)
+            label:SetWidth(width)
+        end,
+    },
+    
+    -- Setting 'height'
+    height = {
+        _apply = function(orb, label, height)
+            label:SetHeight(height)
+        end,
+    },
+
+    -- Setting 'justifyH'
+    justifyH = {
+        _apply = function(orb, label, justifyH)
+            label:SetJustifyH(justifyH)
+        end,
+
+        _mirror = function(justifyH)
+            return mirroredAlignments[justifyH]
+        end,
+    },
+
+    -- Setting 'justifyV'
+    justifyV = {
+        _apply = function(orb, label, justifyV)
+            label:SetJustifyV(justifyV)
+        end,
+    },
+
+    -- Setting 'showOnlyOnHover'
+    showOnlyOnHover = {
+        _apply = function(orb, label, showOnlyOnHover)
+            -- TODO
         end,
     },
 
@@ -652,7 +893,50 @@ end
 --  E. Local values and helper functions
 -- ============================================================================
 
-local mirroredAnchors = {
+local defaultSettings = {
+    enabled = true,
+    locked = true,
+
+    style = 'orb',
+    unit = 'player',
+    resource = 'health',
+
+    colorStyle = 'resource',
+    size = 128,
+    aspectRatio = 1,
+    direction = 'up',
+    flipped = false,
+    parent = nil,
+    anchor = nil,
+
+    backdrop = {
+        texture = '',
+    },
+    backdropArt = {
+        texture = '',
+    },
+    fill = {
+        texture = '',
+    },
+    border = {
+        texture = '',
+    },
+    borderArt = {
+        texture = '',
+    },
+
+    labels = {
+        -- TODO
+    },
+}
+
+mirroredAlignments = {
+    ['LEFT'] = 'RIGHT',
+    ['CENTER'] = 'CENTER',
+    ['RIGHT'] = 'LEFT',
+}
+
+mirroredAnchors = {
     ['TOPLEFT'] = 'TOPRIGHT',
     ['TOP'] = 'TOP',
     ['TOPRIGHT'] = 'TOPLEFT',
@@ -664,7 +948,7 @@ local mirroredAnchors = {
     ['CENTER'] = 'CENTER',
 }
 
-local mirroredDirections = {
+mirroredDirections = {
     ['up'] = 'up',
     ['down'] = 'down',
     ['left'] = 'right',
@@ -679,68 +963,29 @@ function ApplyTexture(region, texture)
     end
 end
 
-function MirrorSetting(name, value, groupName)
-    if value == nil then return end
-    if groupName == nil then
-        if name == 'anchor' then
-        return {
-                point = mirroredAnchors[value.point],
-                relativeTo = value.relativeTo,
-                relativePoint = mirroredAnchors[value.relativePoint],
-                x = -value.x,
-                y = value.y,
-        }
-        elseif name == 'flipped' then
-            return not value
-        elseif name == 'direction' then
-            return mirroredDirections[value]
-        else
-            return value
-        end
-    else
-        return value
-    end
-end
-
 function ReadSettings(settings)
     local readSettings = { }
 
-    -- Copy from the settings table
-    local function CopySetting(name, groupName)
-        local readSettings = readSettings
-        local settings = settings
-        if groupName then
-            if settings[groupName] == nil then return end
-            readSettings[groupName] = readSettings[groupName] or { }
-            readSettings = readSettings[groupName]
-            settings = settings[groupName]
-        end
-        if settings[name] == nil then return end
-        readSettings[name] = settings[name]
+    -- Iterator functions
+    local function Enter(name, iterator)
+        local iterator = table.copy(iterator)
+        iterator.readSettings[name] = iterator.readSettings[name] or { }
+        iterator.readSettings = iterator.readSettings[name]
+        return iterator
     end
 
-    CopySetting('enabled')
-    CopySetting('locked')
+    -- Copy settings
+    TraverseSettings(settings, Settings, {
+        VisitSetting = function(name, value, schema, iterator)
+            iterator.readSettings[name] = value
+        end,
+        EnterGroup = Enter,
+        EnterList = Enter,
+        EnterListElement = Enter,
+        readSettings = readSettings,
+    })
 
-    CopySetting('style')
-    CopySetting('unit')
-    CopySetting('resource')
-
-    CopySetting('colorStyle')
-    CopySetting('size')
-    CopySetting('aspectRatio')
-    CopySetting('direction')
-    CopySetting('flipped')
-    CopySetting('parent')
-    CopySetting('anchor')
-
-    CopySetting('texture', 'backdrop')
-    CopySetting('texture', 'backdropArt')
-    CopySetting('texture', 'fill')
-    CopySetting('texture', 'border')
-    CopySetting('texture', 'borderArt')
-
-    -- Fetch inherited settings
+    -- Inherit settings
     local inheritName = settings.inherit
     local inheritStyle = settings.inheritStyle or 'copy'
     if inheritName ~= nil then
@@ -748,79 +993,82 @@ function ReadSettings(settings)
         if inheritSettings == nil then error('Inherited orb "'..inheritName..'" does not exist') end
         inheritSettings = ReadSettings(inheritSettings)
 
-        local function InheritSetting(name, groupName)
-            local readSettings = readSettings
-            local inheritSettings = inheritSettings
-            if groupName then
-                if inheritSettings[groupName] == nil then return end
-                readSettings[groupName] = readSettings[groupName] or { }
-                readSettings = readSettings[groupName]
-                inheritSettings = inheritSettings[groupName]
-            end
-            if inheritSettings[name] == nil then return end
-            if readSettings[name] == nil then
-                if inheritStyle == 'copy' then
-                    readSettings[name] = inheritSettings[name]
-                elseif inheritStyle == 'mirror' then
-                    readSettings[name] = MirrorSetting(name, inheritSettings[name], groupName)
+        TraverseSettings(inheritSettings, Settings, {
+            VisitSetting = function(name, value, schema, iterator)
+                if iterator.readSettings[name] == nil then
+                    if inheritStyle == 'mirror' then
+                        if schema._mirror then
+                            value = schema._mirror(value)
+                        end
+                    end
+                    iterator.readSettings[name] = value
                 end
+            end,
+            EnterGroup = Enter,
+            EnterList = Enter,
+            EnterListElement = Enter,
+            readSettings = readSettings,
+        })
+    end
+
+    -- Apply missing defaults
+    TraverseSettings(defaultSettings, Settings, {
+        VisitSetting = function(name, value, schema, iterator)
+            if iterator.readSettings[name] == nil then
+                iterator.readSettings[name] = value
             end
-        end
-
-        --InheritSetting('enabled')
-        if inheritStyle == 'copy' then InheritSetting('locked') end
-
-        InheritSetting('style')
-        InheritSetting('unit')
-        InheritSetting('resource')
-
-        InheritSetting('colorStyle')
-        InheritSetting('size')
-        InheritSetting('aspectRatio')
-        InheritSetting('direction')
-        InheritSetting('flipped')
-        InheritSetting('parent')
-        InheritSetting('anchor')
-
-        InheritSetting('texture', 'backdrop')
-        InheritSetting('texture', 'backdropArt')
-        InheritSetting('texture', 'fill')
-        InheritSetting('texture', 'border')
-        InheritSetting('texture', 'borderArt')
-    end
-
-    -- Supply missing settings with defaults
-    local function DefaultSetting(name, default, groupName)
-        local readSettings = readSettings
-        if groupName then
-            readSettings[groupName] = readSettings[groupName] or { }
-            readSettings = readSettings[groupName]
-        end
-        if readSettings[name] == nil then
-            readSettings[name] = default
-        end
-    end
-
-    DefaultSetting('enabled', true)
-    DefaultSetting('locked', true)
-
-    DefaultSetting('style', 'orb')
-    DefaultSetting('unit', 'player')
-    DefaultSetting('resource', 'health')
-
-    DefaultSetting('colorStyle', 'resource')
-    DefaultSetting('size', 128)
-    DefaultSetting('aspectRatio', 1)
-    DefaultSetting('direction', 'up')
-    DefaultSetting('flipped', false)
-    DefaultSetting('parent', nil)
-    DefaultSetting('anchor', nil)
-
-    DefaultSetting('texture', '', 'backdrop')
-    DefaultSetting('texture', '', 'backdropArt')
-    DefaultSetting('texture', '', 'fill')
-    DefaultSetting('texture', '', 'border')
-    DefaultSetting('texture', '', 'borderArt')
+        end,
+        EnterGroup = Enter,
+        EnterList = Enter,
+        EnterListElement = Enter,
+        readSettings = readSettings,
+        inheritSettings = inheritSettings,
+        defaultSettings = defaultSettings,
+    })
 
     return readSettings
+end
+
+function TraverseSettings(settings, schema, iterator)
+    -- iterator = {
+    --     VisitSetting = function(name, value, schema, iterData) return end,
+    --     EnterGroup = function(name, iterData) return iterData end,
+    --     EnterList = function(name, iterData) return iterData end,
+    --     EnterListElement = function(name, iterData) return iterData end,
+    --     ...,
+    -- }
+
+    -- Generate settings order if it hasn't been yet
+    if schema._order == nil then
+        local order = { }
+        for name, _ in pairs(schema) do
+            if not string.match(name, '^_') then
+                table.insert(order, name)
+            end
+        end
+        table.sort(order, function(l, r)
+            return (schema[l]._priority or 0) > (schema[r]._priority or 0)
+        end)
+        schema._order = order
+    end
+
+    -- Iterate through settings in order
+    for _, name in ipairs(schema._order) do
+        local schema = schema[name]
+        local value = settings[name]
+        if value ~= nil and not string.match(name, '^_') then
+            if schema._type == 'group' then
+                local iterator = iterator.EnterGroup(name, iterator)
+                TraverseSettings(value, schema, iterator)
+            elseif schema._type == 'list' then
+                local iterator = iterator.EnterList(name, iterator)
+                for name, value in pairs(value) do
+                    local iterator = iterator.EnterListElement(name, iterator)
+                    TraverseSettings(value, schema, iterator)
+                end
+            else
+                iterator.VisitSetting(name, value, schema, iterator)
+            end
+        end
+    end
 end

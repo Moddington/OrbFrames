@@ -4,6 +4,7 @@
 --  A. AddOn setup
 --  B. AceAddon callbacks
 --  C. Options table
+--  D. Misc
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -109,4 +110,14 @@ end
 function OrbFrames:OpenBlizzConfig()
 	InterfaceOptionsFrame_OpenToCategory('OrbFrames')
 	InterfaceOptionsFrame_OpenToCategory('OrbFrames')
+end
+
+-- ============================================================================
+--  D. Misc
+-- ============================================================================
+
+function table.copy(t)
+	local t2 = { }
+	for k, v in pairs(t) do t2[k] = v end
+	return t2
 end
