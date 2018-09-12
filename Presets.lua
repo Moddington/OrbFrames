@@ -50,7 +50,7 @@ presets['PlayerHealth'] = {
 
     labels = {
         ['resource'] = {
-            text = '{resourceName:titlecase}: {resource}/{resourceMax} ({resourcePercent}%)',
+            text = '{resourceName}: {resource}/{resourceMax} ({resourcePercent}%)\n',
             font = 'GameFontWhite',
             anchor = {
                 point = 'BOTTOMLEFT',
@@ -175,7 +175,7 @@ presets['TargetHealth'] = {
             justifyV = 'MIDDLE',
         },
         ['power'] = {
-            text = 'Power: {power}/{powerMax} ({powerPercent}%)',
+            text = '{powerName}: {power}/{powerMax} ({powerPercent}%)',
             font = 'GameFontWhite',
             anchor = {
                 point = 'RIGHT',

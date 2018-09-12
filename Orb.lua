@@ -5,7 +5,8 @@
 --  B. Callbacks and helpers
 --  C. Settings
 --  D. Regions
---  E. Local values and helper functions
+--  E. Labels
+--  F. Local values and helper functions
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -288,46 +289,11 @@ function Orb:UpdateOrbLabel(label)
         if not UnitExists(unit) then
             tagText = '-'
         else
-            if tags[1] == 'class' then
-                tagText = UnitClass(unit)
-            elseif tags[1] == 'name' then
-                tagText = UnitName(unit)
-            elseif tags[1] == 'resourceName' then
-                tagText = resource
-            elseif tags[1] == 'resource' then
-                if resource == 'health' then
-                    tagText = tostring(UnitHealth(unit))
-                elseif resource == 'power' then
-                    tagText = tostring(UnitPower(unit))
-                end
-            elseif tags[1] == 'resourceMax' then
-                if resource == 'health' then
-                    tagText = tostring(UnitHealthMax(unit))
-                elseif resource == 'power' then
-                    tagText = tostring(UnitPowerMax(unit))
-                end
-            elseif tags[1] == 'resourcePercent' then
-                if resource == 'health' then
-                    tagText = tostring(math.floor(UnitHealth(unit) / UnitHealthMax(unit) * 100))
-                elseif resource == 'power' then
-                    tagText = tostring(math.floor(UnitPower(unit) / UnitPowerMax(unit) * 100))
-                end
-            elseif tags[1] == 'health' then
-                tagText = tostring(UnitHealth(unit))
-            elseif tags[1] == 'healthMax' then
-                tagText = tostring(UnitHealthMax(unit))
-            elseif tags[1] == 'healthPercent' then
-                tagText = tostring(math.floor(UnitHealth(unit) / UnitHealthMax(unit) * 100))
-            elseif tags[1] == 'power' then
-                tagText = tostring(UnitPower(unit))
-            elseif tags[1] == 'powerMax' then
-                tagText = tostring(UnitPowerMax(unit))
-            elseif tags[1] == 'powerPercent' then
-                tagText = tostring(math.floor(UnitPower(unit) / UnitPowerMax(unit) * 100))
-            end
+            tagText = self:ReadOrbLabelTag(tags[1])
         end
         table.remove(tags, 1)
         for n, tag in ipairs(tags) do
+            -- TODO: reconsider these
             if tag == 'titlecase' then
                 tagText = string.gsub(" "..tagText, "%W%l", string.upper):sub(2)
             elseif tag == 'uppercase' then
@@ -890,7 +856,89 @@ function Orb:CreateOrbBorderArt()
 end
 
 -- ============================================================================
---  E. Local values and helper functions
+--  E. Labels
+-- ============================================================================
+
+local LabelTags = { }
+
+function Orb:ReadOrbLabelTag(name)
+    if LabelTags[name] == nil then
+        return '-'
+    else
+        return LabelTags[name](self)
+    end
+end
+
+function LabelTags.class(orb)
+    return UnitClass(orb.unit)
+end
+
+function LabelTags.name(orb)
+    return UnitName(orb.unit)
+end
+
+function LabelTags.resourceName(orb)
+    if orb.resource == 'health' then
+        return 'Health'
+    elseif orb.resource == 'power' then
+        return L['POWER_'..select(2, UnitPowerType(orb.unit))]
+    end
+end
+
+function LabelTags.resource(orb)
+    if orb.resource == 'health' then
+        return tostring(UnitHealth(orb.unit))
+    elseif orb.resource == 'power' then
+        return tostring(UnitPower(orb.unit))
+    end
+end
+
+function LabelTags.resourceMax(orb)
+    if orb.resource == 'health' then
+        return tostring(UnitHealthMax(orb.unit))
+    elseif orb.resource == 'power' then
+        return tostring(UnitPowerMax(orb.unit))
+    end
+end
+
+function LabelTags.resourcePercent(orb)
+    if orb.resource == 'health' then
+        return tostring(math.floor(UnitHealth(orb.unit) / UnitHealthMax(orb.unit) * 100))
+    elseif orb.resource == 'power' then
+        return tostring(math.floor(UnitPower(orb.unit) / UnitPowerMax(orb.unit) * 100))
+    end
+end
+
+function LabelTags.health(orb)
+    return tostring(UnitHealth(orb.unit))
+end
+
+function LabelTags.healthMax(orb)
+    return tostring(UnitHealthMax(orb.unit))
+end
+
+function LabelTags.healthPercent(orb)
+    return tostring(math.floor(UnitHealth(orb.unit) / UnitHealthMax(orb.unit) * 100))
+end
+
+function LabelTags.powerName(orb)
+    return L['POWER_'..select(2, UnitPowerType(orb.unit))]
+end
+
+function LabelTags.power(orb)
+    return tostring(UnitPower(orb.unit))
+end
+
+function LabelTags.powerMax(orb)
+    return tostring(UnitPowerMax(orb.unit))
+end
+
+function LabelTags.resourcePercent(orb)
+    return tostring(math.floor(UnitPower(orb.unit) / UnitPowerMax(orb.unit) * 100))
+end
+
+-- ============================================================================
+--  F. Local values and helper functions
 -- ============================================================================
 
 local defaultSettings = {
