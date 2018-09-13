@@ -56,7 +56,7 @@ presets['PlayerHealth'] = {
                 point = 'BOTTOMLEFT',
                 relativePoint = 'TOPLEFT',
                 x = 5,
-                y = 5,
+                y = -5,
             },
             width = 0,
             justifyH = 'LEFT',

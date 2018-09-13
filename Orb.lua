@@ -38,8 +38,8 @@ function OrbFrames:LoadAllOrbs()
     -- Perform second-phase initialization
     for name, _ in pairs(self.db.profile.orbs) do
         local orb = self.orbs[name]
-        orb:ApplyOrbSettings(orb.settings)
-        orb.settings = nil
+        orb:ApplyOrbSettings(orb.delayedSettings)
+        orb.delayedSettings = nil
     end
 end
 
@@ -65,7 +65,6 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
 
     -- Initialize orb
     RegisterUnitWatch(orb)
-    orb.regions = { }
     orb.labels = { }
     orb:EnableMouse(true)
     orb:SetMovable(true)
@@ -76,23 +75,27 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
     orb:SetScript('OnDragStart', orb.OnDragStart)
     orb:SetScript('OnDragStop', orb.OnDragStop)
 
-    -- Setting groups
-    orb.backdrop = { }
-    orb.backdropArt = { }
-    orb.fill = { }
-    orb.border = { }
-    orb.borderArt = { }
-
     -- Default orb settings necessary for clean loading
-    orb.enabled = true
-    orb.flipped = false
-    orb.direction = 'up'
-    orb.aspectRatio = 1
+    orb.settings = {
+        enabled = true,
+
+        flipped = false,
+        direction = 'up',
+        aspectRatio = 1,
+
+        backdrop = { },
+        backdropArt = { },
+        fill = { },
+        border = { },
+        borderArt = { },
+
+        labels = { },
+    }
 
     -- Apply settings
     if settings ~= nil then
         if twoPhase then
-            orb.settings = settings
+            orb.delayedSettings = settings
         else
             orb:ApplyOrbSettings(settings)
         end
@@ -162,7 +165,7 @@ end
 
 function Orb:RegisterOrbEvents()
     self:UnregisterAllEvents()
-    local style = self.style
+    local style = self.settings.style
     if style == 'orb' then
         local resource = self.resource
         if resource == 'health' then
@@ -185,7 +188,7 @@ end
 
 function Orb:SetOrbAnchors()
     self:ClearAllPoints()
-    local anchor = self.anchor
+    local anchor = self.settings.anchor
     if anchor == nil then anchor = { point = 'CENTER' } end
     local relativeTo = anchor.relativeTo
     if relativeTo == nil then relativeTo = self:GetParent() end
@@ -196,17 +199,25 @@ end
 
 function Orb:SetOrbLabelAnchors(label)
     label:ClearAllPoints()
-    local anchor = label.anchor
+    local anchor = label.settings.anchor
     if anchor == nil then anchor = { point = 'CENTER' } end
     local relativePoint = anchor.relativePoint
     if relativePoint == nil then relativePoint = anchor.point end
     label:SetPoint(anchor.point, self, relativePoint, anchor.x, anchor.y)
 end
 
+function Orb:SetOrbLabelDrawLayer(label)
+    if label.settings.showOnlyOnHover then
+        label:SetDrawLayer('HIGHLIGHT')
+    else
+        label:SetDrawLayer('ARTWORK')
+    end
+end
+
 function Orb:UpdateOrb()
-    local style = self.style
+    local style = self.settings.style
     if style == 'orb' then
-        local fill = self.regions.fill
+        local fill = self.fill
         local unit = self.unit
         local resource = self.resource
 
@@ -225,7 +236,7 @@ function Orb:UpdateOrb()
         end
         if proportion > 0 then
             proportion = math.min(1, proportion)
-            local direction = self.direction
+            local direction = self.settings.direction
             if direction == 'up' then
                 fill:SetHeight(self:GetHeight() * proportion)
                 fill:SetTexCoord(0, 1, 1 - proportion, 1)
@@ -246,7 +257,7 @@ function Orb:UpdateOrb()
 
         -- Update fill color
         local colors = OrbFrames.db.profile.colors
-        local colorStyle = self.colorStyle
+        local colorStyle = self.settings.colorStyle
         local color
         if colorStyle == 'class' then
             color = colors.classes[select(2, UnitClass(unit))]
@@ -276,37 +287,14 @@ function Orb:UpdateOrbLabel(label)
     -- in Settings.labels.text._apply()
     local unit = self.unit
     local resource = self.resource
-    local text = label.text
-    local formattedText = ''
-    local i, j = string.find(text, '{[^}]*}')
-    local prev_j = 0
-    while i ~= nil do
-        local tags = { }
-        for tag in string.gmatch(string.sub(text, i+1, j-1), '[^:]*') do
-            table.insert(tags, tag)
-        end
-        local tagText = ''
+    local text = label.settings.text
+    local formattedText = string.gsub(text, '{([^}]*)}', function(tag)
         if not UnitExists(unit) then
-            tagText = '-'
+            return '-'
         else
-            tagText = self:ReadOrbLabelTag(tags[1])
+            return self:ReadOrbLabelTag(tag)
         end
-        table.remove(tags, 1)
-        for n, tag in ipairs(tags) do
-            -- TODO: reconsider these
-            if tag == 'titlecase' then
-                tagText = string.gsub(" "..tagText, "%W%l", string.upper):sub(2)
-            elseif tag == 'uppercase' then
-                tagText = string.upper(tagText)
-            elseif tag == 'lowercase' then
-                tagText = string.lower(tagText)
-            end
-        end
-        formattedText = formattedText..string.sub(text, prev_j+1, i-1)..tagText
-        prev_j = j
-        i, j = string.find(text, '{[^}]*}', j)
-    end
-    formattedText = formattedText..string.sub(text, prev_j+1)
+    end)
     label:SetText(formattedText)
 end
 
@@ -368,7 +356,7 @@ function Orb:ApplyOrbSettings(settings)
         VisitSetting = VisitSetting,
         EnterGroup = Enter,
         EnterList = EnterList,
-        settings = self,
+        settings = self.settings,
     })
 
     -- Resume orb updates
@@ -380,7 +368,7 @@ end
 
 function Orb:ApplyOrbSetting(name, value, groupName)
     local Settings = Settings
-    local settings = self
+    local settings = self.settings
     if groupName then
         if Settings[groupName] == nil then return end
         settings[groupName] = settings[groupName] or { }
@@ -398,14 +386,18 @@ function Orb:AddOrbLabel(labelName)
 
     local label = self:CreateFontString()
     self.labels[labelName] = label
+    self.settings.labels[labelName] = self.settings.labels[labelName] or { }
+    label.settings = self.settings.labels[labelName]
+
+    self:SetOrbLabelDrawLayer(label)
 
     label.name = labelName
 end
 
 function Orb:ApplyOrbLabelSetting(labelName, name, value)
     local label = self.labels[labelName]
-    if value ~= label[name] then
-        label[name] = value
+    if value ~= label.settings[name] then
+        label.settings[name] = value
         Settings.labels[name]._apply(self, label, value)
     end
 end
@@ -463,6 +455,7 @@ Settings.style = {
 -- Values: Any valid WoW unit name
 Settings.unit = {
     _apply = function(orb, unit)
+        orb.unit = unit
         orb:SetAttribute('unit', unit)
         SecureUnitButton_OnLoad(orb, unit) -- TODO: menuFunc
         orb:RegisterOrbEvents()
@@ -478,6 +471,7 @@ Settings.unit = {
 --         'full'   - Always show a full orb
 Settings.resource = {
     _apply = function(orb, resource)
+        orb.resource = resource
         orb:RegisterOrbEvents()
         orb:UpdateOrb()
     end,
@@ -497,7 +491,7 @@ Settings.colorStyle = {
 -- Description: The vertical size of the orb
 Settings.size = {
     _apply = function(orb, size)
-        local aspectRatio = orb.aspectRatio
+        local aspectRatio = orb.settings.aspectRatio
         if aspectRatio ~= nil then
             orb:SetWidth(size * aspectRatio)
             orb:SetHeight(size)
@@ -510,7 +504,7 @@ Settings.size = {
 -- Description: The ratio between the orb's height and its width
 Settings.aspectRatio = {
     _apply = function(orb, aspectRatio)
-        local size = orb.size
+        local size = orb.settings.size
         if size ~= nil then
             orb:SetWidth(size * aspectRatio)
             orb:SetHeight(size)
@@ -602,7 +596,7 @@ Settings.backdrop = {
     -- Values: Any valid path to a texture
     texture = {
         _apply = function(orb, texture)
-            local backdrop = orb.regions.backdrop
+            local backdrop = orb.backdrop
             if backdrop ~= nil then ApplyTexture(backdrop, texture) end
         end,
     },
@@ -619,7 +613,7 @@ Settings.backdropArt = {
     -- Values: Any valid path to a texture
     texture = {
         _apply = function(orb, texture)
-            local backdropArt = orb.regions.backdropArt
+            local backdropArt = orb.backdropArt
             if backdropArt ~= nil then ApplyTexture(backdropArt, texture) end
         end,
     },
@@ -636,7 +630,7 @@ Settings.fill = {
     -- Values: Any valid path to a texture
     texture = {
         _apply = function(orb, texture)
-            local fill = orb.regions.fill
+            local fill = orb.fill
             if fill ~= nil then ApplyTexture(fill, texture) end
         end,
     },
@@ -653,7 +647,7 @@ Settings.border = {
     -- Values: Any valid path to a texture
     texture = {
         _apply = function(orb, texture)
-            local border = orb.regions.border
+            local border = orb.border
             if border ~= nil then ApplyTexture(border, texture) end
         end,
     },
@@ -670,7 +664,7 @@ Settings.borderArt = {
     -- Values: Any valid path to a texture
     texture = {
         _apply = function(orb, texture)
-            local borderArt = orb.regions.borderArt
+            local borderArt = orb.borderArt
             if borderArt ~= nil then ApplyTexture(borderArt, texture) end
         end,
     },
@@ -685,7 +679,8 @@ Settings.labels = {
 
     -- Setting 'text'
     -- Description: A format string used to determine the label's text
-    -- Values: TODO
+    -- Values: A string optionally containing tags wrapped in {} braces.
+    --         See the LabelTags table for a list of tags.
     text = {
         _apply = function(orb, label, text)
             -- TODO: Analyze the format string
@@ -732,6 +727,7 @@ Settings.labels = {
     },
 
     -- Setting 'width'
+    -- Description: The maximum width of the label
     width = {
         _apply = function(orb, label, width)
             label:SetWidth(width)
@@ -739,6 +735,7 @@ Settings.labels = {
     },
     
     -- Setting 'height'
+    -- Description: The maximum height of the label
     height = {
         _apply = function(orb, label, height)
             label:SetHeight(height)
@@ -746,6 +743,8 @@ Settings.labels = {
     },
 
     -- Setting 'justifyH'
+    -- Description: The horizontal justification for the text
+    -- Values: 'LEFT', 'CENTER', 'RIGHT'
     justifyH = {
         _apply = function(orb, label, justifyH)
             label:SetJustifyH(justifyH)
@@ -757,6 +756,8 @@ Settings.labels = {
     },
 
     -- Setting 'justifyV'
+    -- Description: The vertical justification for the text
+    -- Values: 'TOP', 'MIDDLE', 'BOTTOM'
     justifyV = {
         _apply = function(orb, label, justifyV)
             label:SetJustifyV(justifyV)
@@ -764,9 +765,11 @@ Settings.labels = {
     },
 
     -- Setting 'showOnlyOnHover'
+    -- Description: Whether the label should only be visible while hovering
+    --              over the orb
     showOnlyOnHover = {
         _apply = function(orb, label, showOnlyOnHover)
-            -- TODO
+            orb:SetOrbLabelDrawLayer(label)
         end,
     },
 
@@ -777,42 +780,42 @@ Settings.labels = {
 -- ============================================================================
 
 function Orb:CreateOrbBackdrop()
-    if self.regions.backdrop == nil then
+    if self.backdrop == nil then
         local backdrop = self:CreateTexture()
         backdrop:SetAllPoints(self)
         backdrop:SetDrawLayer('BACKGROUND', 0)
         backdrop:SetVertexColor(0, 0, 0, 1) -- TODO: remove
-        local texture = self.backdrop.texture
+        local texture = self.settings.backdrop.texture
         if texture ~= nil then ApplyTexture(backdrop, texture) end
-        self.regions.backdrop = backdrop
+        self.backdrop = backdrop
     end
 end
 
 function Orb:CreateOrbBackdropArt()
-    if self.regions.backdropArt == nil then
+    if self.backdropArt == nil then
         local backdropArt = self:CreateTexture()
         backdropArt:SetAllPoints(self)
         backdropArt:SetDrawLayer('BACKGROUND', -1)
-        local texture = self.backdropArt.texture
+        local texture = self.settings.backdropArt.texture
         if texture ~= nil then ApplyTexture(backdropArt, texture) end
-        self.regions.backdropArt = backdropArt
+        self.backdropArt = backdropArt
     end
 end
 
 function Orb:CreateOrbFill()
-    if self.regions.fill == nil then
+    if self.fill == nil then
         local fill = self:CreateTexture()
         fill:SetDrawLayer('ARTWORK', 0)
-        local texture = self.fill.texture
+        local texture = self.settings.fill.texture
         if texture ~= nil then ApplyTexture(fill, texture) end
-        self.regions.fill = fill
+        self.fill = fill
         self:SetFillAnchors()
     end
 end
 
 function Orb:SetFillAnchors()
-    local direction = self.direction
-    local fill = self.regions.fill
+    local direction = self.settings.direction
+    local fill = self.fill
     fill:ClearAllPoints()
     if direction == 'up' then
         fill:SetPoint('BOTTOMLEFT')
@@ -834,24 +837,24 @@ function Orb:SetFillAnchors()
 end
 
 function Orb:CreateOrbBorder()
-    if self.regions.border == nil then
+    if self.border == nil then
         local border = self:CreateTexture()
         border:SetAllPoints(self)
         border:SetDrawLayer('ARTWORK', 1)
-        local texture = self.border.texture
+        local texture = self.settings.border.texture
         if texture ~= nil then ApplyTexture(border, texture) end
-        self.regions.border = border
+        self.border = border
     end
 end
 
 function Orb:CreateOrbBorderArt()
-    if self.regions.borderArt == nil then
+    if self.borderArt == nil then
         local borderArt = self:CreateTexture()
         borderArt:SetAllPoints(self)
         borderArt:SetDrawLayer('ARTWORK', 2)
-        local texture = self.borderArt.texture
+        local texture = self.settings.borderArt.texture
         if texture ~= nil then ApplyTexture(borderArt, texture) end
-        self.regions.borderArt = borderArt
+        self.borderArt = borderArt
     end
 end
 
