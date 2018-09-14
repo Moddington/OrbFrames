@@ -52,7 +52,8 @@ OrbFrames.defaults = {
 				ENERGY = { 1.00, 1.00, 0.00 },
 			},
 		},
-        orbs = { },
+		orbs = { },
+		blizz = { }
     },
 }
 
@@ -61,15 +62,19 @@ OrbFrames.defaults = {
 -- ============================================================================
 
 function OrbFrames:OnInitialize()
-    self.orbs = { }
+	self.orbs = { }
+	self.blizzHider = CreateFrame('Frame', 'OrbFrames_BlizzHider')
+	self.blizzHider:Hide()
     self:InitOptions()
 end
 
 function OrbFrames:OnEnable()
-    self:LoadAllOrbs()
+	self:LoadAllOrbs()
+	self:LoadBlizzSettings()
 end
 
 function OrbFrames:OnDisable()
+	self:UnloadBlizzSettings()
     self:DisableAllOrbs()
 end
 
@@ -82,7 +87,7 @@ local options = {
 	handler = OrbFrames,
 	type = 'group',
 	args = {
-	}
+	},
 }
 
 function OrbFrames:InitOptions()
@@ -116,8 +121,33 @@ end
 --  D. Misc
 -- ============================================================================
 
-function table.copy(t)
-	local t2 = { }
-	for k, v in pairs(t) do t2[k] = v end
-	return t2
+function OrbFrames:LoadBlizzSettings()
+	for blizzFrameName, settings in pairs(self.db.profile.blizz or { }) do
+		self:SetBlizzHidden(blizzFrameName, settings.hidden)
+	end
+end
+
+function OrbFrames:UnloadBlizzSettings()
+	for blizzFrameName, settings in pairs(self.db.profile.blizz or { }) do
+		self:SetBlizzHidden(blizzFrameName, false)
+	end
+end
+
+function OrbFrames:SetBlizzHidden(blizzFrameName, hidden)
+	-- TODO: maybe this can be made more compatible with other mods
+	--       trying to hide the same frames?
+	local blizzFrame = _G[blizzFrameName]
+	if blizzFrame then
+		if hidden then
+			if blizzFrame:GetParent() ~= self.blizzHider then
+				blizzFrame._oldParent = blizzFrame:GetParent()
+				blizzFrame:SetParent(self.blizzHider)
+			end
+		else
+			if blizzFrame:GetParent() == self.blizzHider then
+				blizzFrame:SetParent(blizzFrame._oldParent)
+				blizzFrame._oldParent = nil
+			end
+		end
+	end
 end

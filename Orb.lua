@@ -5,8 +5,9 @@
 --  B. Callbacks and helpers
 --  C. Settings
 --  D. Regions
---  E. Labels
---  F. Local values and helper functions
+--  E. Pips
+--  F. Labels
+--  G. Local values and helper functions
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -14,15 +15,11 @@ local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 
 -- Orb methods
 local Orb = { }
+local OrbSettings = { }
 
 -- Local values and helper functions
-local mirroredAnchors
-local mirroredAlignments
-local mirroredDirections
 local ApplyTexture
-local MirrorSetting
-local ReadSettings
-local TraverseSettings
+local ReadOrbSettings
 
 -- ============================================================================
 --  A. Orb creation and management
@@ -65,6 +62,7 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
 
     -- Initialize orb
     RegisterUnitWatch(orb)
+    orb.pips = { }
     orb.labels = { }
     orb:EnableMouse(true)
     orb:SetMovable(true)
@@ -85,10 +83,17 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
 
         backdrop = { },
         backdropArt = { },
-        fill = { },
+        fill = {
+            resourceTextures = { },
+        },
         overfill = { },
         border = { },
         borderArt = { },
+
+        pips = {
+            shape = 'none',
+            resourceTextures = { },
+        },
 
         labels = { },
     }
@@ -107,25 +112,25 @@ end
 
 function OrbFrames:EnableAllOrbs()
     for _, orb in pairs(self.orbs) do
-        orb:SetOrbEnabled(true)
+        OrbSettings.enabled._apply(orb, true)
     end
 end
 
 function OrbFrames:DisableAllOrbs()
     for _, orb in pairs(self.orbs) do
-        orb:SetOrbEnabled(false)
+        OrbSettings.enabled._apply(orb, false)
     end
 end
 
 function OrbFrames:LockAllOrbs()
     for _, orb in pairs(self.orbs) do
-        orb:SetOrbLocked(true)
+        OrbSettings.locked._apply(orb, true)
     end
 end
 
 function OrbFrames:UnlockAllOrbs()
     for _, orb in pairs(self.orbs) do
-        orb:SetOrbLocked(false)
+        OrbSettings.locked._apply(orb, false)
     end
 end
 
@@ -282,27 +287,13 @@ function Orb:UpdateOrb()
         error('Orb has no style')
     end
 
+    -- Update pips
+    self:UpdateOrbPips()
+
     -- Update labels
     for labelName, label in pairs(self.labels) do
         self:UpdateOrbLabel(label)
     end
-end
-
-function Orb:UpdateOrbLabel(label)
-    -- TODO: only update the text when necessary
-    -- this will require the completion of the analysis step
-    -- in Settings.labels.text._apply()
-    local unit = self.unit
-    local resource = self.resource
-    local text = label.settings.text
-    local formattedText = string.gsub(text, '{([^}]*)}', function(tag)
-        if not UnitExists(unit) then
-            return '-'
-        else
-            return self:ReadOrbLabelTag(tag)
-        end
-    end)
-    label:SetText(formattedText)
 end
 
 function Orb:SuspendOrbUpdates()
@@ -317,12 +308,9 @@ end
 --  C. Settings
 -- ============================================================================
 
-local Settings = { }
-
 function Orb:ApplyOrbSettings(settings)
     -- Read orb settings to acquire inherited and default values
-    print(self:GetName())
-    settings = ReadSettings(settings)
+    settings = ReadOrbSettings(settings)
 
     -- Suspend orb updates
     self:SuspendOrbUpdates()
@@ -360,7 +348,7 @@ function Orb:ApplyOrbSettings(settings)
         end
         return value, iterator
     end
-    TraverseSettings(settings, Settings, {
+    OrbFrames.TraverseSettings(settings, OrbSettings, {
         VisitSetting = VisitSetting,
         EnterGroup = Enter,
         EnterList = EnterList,
@@ -375,7 +363,7 @@ function Orb:ApplyOrbSettings(settings)
 end
 
 function Orb:ApplyOrbSetting(path, value)
-    local Settings = Settings
+    local Settings = OrbSettings
     local settings = self.settings
     local name = string.gsub(path, '(.-)\.', function(tableName)
         Settings = Settings[tableName]
@@ -389,23 +377,9 @@ function Orb:ApplyOrbSetting(path, value)
     end
 end
 
-function Orb:AddOrbLabel(labelName)
-    if self.labels[labelName] then return end
-
-    local label = self:CreateFontString()
-    self.labels[labelName] = label
-    self.settings.labels[labelName] = self.settings.labels[labelName] or { }
-    label.settings = self.settings.labels[labelName]
-    label.orb = self
-
-    self:SetOrbLabelDrawLayer(label)
-
-    label.name = labelName
-end
-
 function Orb:ApplyOrbLabelSetting(labelName, path, value)
     local label = self.labels[labelName]
-    local Settings = Settings.labels
+    local Settings = OrbSettings.labels
     local settings = label.settings
     local name = string.gsub(path, '(.-)\.', function(tableName)
         Settings = Settings[tableName]
@@ -421,7 +395,7 @@ end
 
 -- Setting 'enabled' (boolean)
 -- Description: Whether the orb is enabled or disabled
-Settings.enabled = {
+OrbSettings.enabled = {
     _priority = -100,
 
     _apply = function(orb, enabled)
@@ -438,7 +412,7 @@ Settings.enabled = {
 -- Setting 'locked' (boolean)
 -- Description: Whether the orb is locked in place, or can be repositioned with
 --              the mouse
-Settings.locked = {
+OrbSettings.locked = {
     _apply = function(orb, locked)
         if locked then
             orb:RegisterForDrag()
@@ -452,7 +426,7 @@ Settings.locked = {
 -- Description: The style used for the orb
 -- Values: 'orb' - A fixed-size element
 -- TODO: 'bar' - A stretchable element
-Settings.style = {
+OrbSettings.style = {
     _priority = 100,
 
     _apply = function(orb, style)
@@ -460,7 +434,7 @@ Settings.style = {
             orb:CreateOrbBackdrop()
             orb:CreateOrbBackdropArt()
             orb:CreateOrbFill()
-            orb:CreateOrbOverFill()
+            orb:CreateOrbOverfill()
             orb:CreateOrbBorder()
             orb:CreateOrbBorderArt()
         end
@@ -471,7 +445,7 @@ Settings.style = {
 -- Setting 'unit' (string)
 -- Description: Which unit the orb is tracking
 -- Values: Any valid WoW unit name
-Settings.unit = {
+OrbSettings.unit = {
     _apply = function(orb, unit)
         orb.unit = unit
         orb:SetAttribute('unit', unit)
@@ -487,7 +461,7 @@ Settings.unit = {
 --         'power'  - The unit's primary power type
 --         'empty'  - Always show an empty orb
 --         'full'   - Always show a full orb
-Settings.resource = {
+OrbSettings.resource = {
     _apply = function(orb, resource)
         orb.resource = resource
         orb:RegisterOrbEvents()
@@ -499,7 +473,7 @@ Settings.resource = {
 -- Description: The method used to choose the color for the orb liquid
 -- Values: 'class'    - The unit's class color
 --         'resource' - The resource's color
-Settings.colorStyle = {
+OrbSettings.colorStyle = {
     _apply = function(orb, colorStyle)
         orb:UpdateOrb()
     end,
@@ -507,7 +481,7 @@ Settings.colorStyle = {
 
 -- Setting 'size' (number)
 -- Description: The vertical size of the orb
-Settings.size = {
+OrbSettings.size = {
     _apply = function(orb, size)
         local aspectRatio = orb.settings.aspectRatio
         if aspectRatio ~= nil then
@@ -520,7 +494,7 @@ Settings.size = {
 
 -- Setting 'aspectRatio' (number)
 -- Description: The ratio between the orb's height and its width
-Settings.aspectRatio = {
+OrbSettings.aspectRatio = {
     _apply = function(orb, aspectRatio)
         local size = orb.settings.size
         if size ~= nil then
@@ -534,21 +508,21 @@ Settings.aspectRatio = {
 -- Setting 'direction' (string)
 -- Description: The direction the orb fills in
 -- Values: 'up', 'down', 'left', 'right'
-Settings.direction = {
+OrbSettings.direction = {
     _apply = function(orb, direction)
         if orb.fill then
-            orb:SetFillAnchors()
+            orb:SetOrbFillAnchors()
         end
     end,
 
     _mirror = function(direction)
-        return mirroredDirections[direction]
+        return OrbFrames.mirroredDirections[direction]
     end,
 }
 
 -- Setting 'flipped' (boolean)
 -- Description: Whether the orb is flipped horizontally
-Settings.flipped = {
+OrbSettings.flipped = {
     _apply = function(orb, flipped)
         orb:UpdateOrb()
     end,
@@ -563,7 +537,7 @@ Settings.flipped = {
 -- Values: Any valid orb name
 --         nil - Parent to UIParent instead
 -- TODO: allow parenting to any frame
-Settings.parent = {
+OrbSettings.parent = {
     _apply = function(orb, parent)
         if parent == nil then
             parent = UIParent
@@ -588,16 +562,16 @@ Settings.parent = {
 --         nil - Defaults to { point = 'CENTER', }
 -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
 --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
-Settings.anchor = {
+OrbSettings.anchor = {
     _apply = function(orb, anchor)
         orb:SetOrbAnchors()
     end,
 
     _mirror = function(anchor)
         return {
-            point = mirroredAnchors[anchor.point],
+            point = OrbFrames.mirroredAnchors[anchor.point],
             relativeTo = anchor.relativeTo,
-            relativePoint = mirroredAnchors[anchor.relativePoint],
+            relativePoint = OrbFrames.mirroredAnchors[anchor.relativePoint],
             x = -anchor.x,
             y = anchor.y,
         }
@@ -606,7 +580,7 @@ Settings.anchor = {
 
 -- Setting group 'backdrop'
 -- Description: Contains settings related to the orb's backdrop
-Settings.backdrop = {
+OrbSettings.backdrop = {
     _type = 'group',
 
     -- Setting 'texture' (string)
@@ -623,7 +597,7 @@ Settings.backdrop = {
 
 -- Setting group 'backdropArt'
 -- Description: Contains settings related to the orb's backdrop art
-Settings.backdropArt = {
+OrbSettings.backdropArt = {
     _type = 'group',
 
     -- Setting 'texture' (string)
@@ -640,7 +614,7 @@ Settings.backdropArt = {
 
 -- Setting group 'fill'
 -- Description: Contains settings related to the orb's fill
-Settings.fill = {
+OrbSettings.fill = {
     _type = 'group',
 
     -- Setting 'texture' (string)
@@ -648,8 +622,17 @@ Settings.fill = {
     -- Values: Any valid path to a texture
     texture = {
         _apply = function(orb, texture)
-            local fill = orb.fill
-            if fill ~= nil then ApplyTexture(fill, texture) end
+            orb:SetOrbFillTexture()
+        end,
+    },
+
+    -- Setting 'resourceTextures' (table)
+    -- Description: A lookup table of textures to use for specific resources
+    -- Values: A lookup table where keys are resource names, and values are
+    --         any valid path to a texture
+    resourceTextures = {
+        _apply = function(orb, texture)
+            orb:SetOrbFillTexture()
         end,
     },
 
@@ -657,7 +640,7 @@ Settings.fill = {
 
 -- Setting group 'border'
 -- Description: Contains settings related to the orb's border
-Settings.border = {
+OrbSettings.border = {
     _type = 'group',
 
     -- Setting 'texture' (string)
@@ -674,7 +657,7 @@ Settings.border = {
 
 -- Setting group 'borderArt'
 -- Description: Contains settings related to the orb's border art
-Settings.borderArt = {
+OrbSettings.borderArt = {
     _type = 'group',
 
     -- Setting 'texture' (string)
@@ -689,13 +672,201 @@ Settings.borderArt = {
 
 }
 
+-- Setting group 'pips'
+-- Description: Contains settings used to display secondary power values as pip
+--              icons on the orb
+OrbSettings.pips = {
+    _type = 'group',
+    _priority = -10,
+
+    -- Setting 'shape' (string)
+    -- Description: The shape used to arrange the pips
+    -- Values: 'arc' - Arranged radially on a circle shape
+    --         'orb' - Arranged radially on the edge of the orb
+    --         'line' - Arranged on a line segment
+    --         'edge' - Arranged on an edge of the orb's frame
+    --         'none' - Do not display pips
+    shape = {
+        _priority = -10,
+        _apply = function(orb, shape)
+            orb:SetOrbPipShape()
+        end,
+    },
+
+    -- Setting 'size' (number)
+    -- Description: The size of each pip
+    size = {
+        _apply = function(orb, size)
+            orb:SetOrbPipShape()
+        end,
+    },
+
+    -- Setting 'radius' (number)
+    -- Description: Radius of the circle for the 'arc' shape
+    radius = {
+        _apply = function(orb, radius)
+            local shape = orb.settings.pips.shape
+            if shape == 'arc' then
+                orb:SetOrbPipShape()
+            end
+        end,
+    },
+
+    -- Setting 'centerPoint' (table)
+    -- Description: Centerpoint of the circle for the 'arc' shape
+    -- Values: { x, y }
+    centerPoint = {
+        _apply = function(orb, centerPoint)
+            local shape = orb.settings.pips.shape
+            if shape == 'arc' then
+                orb:SetOrbPipShape()
+            end
+        end,
+
+        _mirror = function(edge)
+            return edge -- TODO
+        end,
+    },
+
+    -- Setting 'radiusOffset' (number)
+    -- Description: Offset for the radius of the 'orb' shape
+    radiusOffset = {
+        _apply = function(orb, radiusOffset)
+            local shape = orb.settings.pips.shape
+            if shape == 'orb' then
+                orb:SetOrbPipShape()
+            end
+        end,
+    },
+
+    -- Setting 'arcSegment' (table)
+    -- Description: Starting and ending angles for the 'arc' and 'orb' shapes
+    -- Values: { theta1, theta2 }
+    -- Notes: Angles are measured in degrees
+    arcSegment = {
+        _apply = function(orb, arcSegment)
+            local shape = orb.settings.pips.shape
+            if shape == 'arc' or shape == 'orb' then
+                orb:SetOrbPipShape()
+            end
+        end,
+
+        _mirror = function(edge)
+            return edge -- TODO
+        end,
+    },
+
+    -- Setting 'lineSegment' (table)
+    -- Description: Starting and ending points of the line segment for the 'line' shape
+    -- Values: { x1, y2, x2, y2 }
+    lineSegment = {
+        _apply = function(orb, lineSegment)
+            local shape = orb.settings.pips.shape
+            if shape == 'line' then
+                orb:SetOrbPipShape()
+            end
+        end,
+
+        _mirror = function(edge)
+            return edge -- TODO
+        end,
+    },
+
+    -- Setting 'edge' (string)
+    -- Description: Name of the edge to use for the 'edge' shape
+    edge = {
+        _apply = function(orb, edge)
+            local shape = orb.settings.pips.shape
+            if shape == 'edge' then
+                orb:SetOrbPipShape()
+            end
+        end,
+
+        _mirror = function(edge)
+            return edge -- TODO
+        end,
+    },
+
+    -- Setting 'edgeOffset' (number)
+    -- Description: Offset from the edge for the 'edge' shape
+    edgeOffset = {
+        _apply = function(orb, edgeOffset)
+            local shape = orb.settings.pips.shape
+            if shape == 'edge' then
+                orb:SetOrbPipShape()
+            end
+        end,
+    },
+
+    -- Setting 'edgeSegment' (table)
+    -- Description: The portion of the edge to use for the 'edge' shape
+    -- Values = { start, end }, where each value represents a position along
+    --          the edge, where 0 is one end and 1 is the other
+    edgeSegment = {
+        _apply = function(orb, edgeSegment)
+            local shape = orb.settings.pips.shape
+            if shape == 'edge' then
+                orb:SetOrbPipShape()
+            end
+        end,
+    },
+
+    -- Setting 'rotatePips' (boolean)
+    -- Description: Whether the pip icons should be rotated to be perpendicular
+    --              to the shape they are placed upon
+    rotatePips = {
+        _apply = function(orb, rotatePips)
+            local shape = orb.settings.pips.shape
+            if shape == 'arc' or shape == 'orb' then
+                orb:SetOrbPipShape()
+            elseif shape == 'line' then
+                orb:SetOrbPipShape()
+            elseif shape == 'edge' then
+                orb:SetOrbPipShape()
+            end
+        end,
+    },
+
+    -- Setting 'baseRotation' (number)
+    -- Description: An angle to rotate the pips by with any shape
+    -- Notes: Angles are measured in degrees
+    baseRotation = {
+        _apply = function(orb, baseRotation)
+            local shape = orb.settings.pips.shape
+            if shape ~= 'none' then
+                orb:SetOrbPipShape()
+            end
+        end,
+    },
+
+    -- Setting 'textures' (table)
+    -- Description: Names of the textures to use for the pips
+    -- Values: { on, off }, where both values are any valid path to a texture
+    textures = {
+        _apply = function(orb, textures)
+            orb:SetOrbPipTextures()
+        end,
+    },
+
+    -- Setting 'resourceTextures' (table)
+    -- Description: A lookup table of textures to use for specific resources
+    -- Values: A lookup table where keys are resource names, and values are
+    --         of the form { on, off }, where both values are any valid path
+    --         to a texture
+    resourceTextures = {
+        _apply = function(orb, resourceTextures)
+            orb:SetOrbPipTextures()
+        end,
+    },
+}
+
 -- Settings for elements list 'labels'
 -- Description: An orb can have a number of labels on it to provide text display
-Settings.labels = {
+OrbSettings.labels = {
     _type = 'list',
     _priority = -10,
 
-    -- Setting 'text'
+    -- Setting 'text' (string)
     -- Description: A format string used to determine the label's text
     -- Values: A string optionally containing tags wrapped in {} braces.
     --         See the LabelTags table for a list of tags.
@@ -706,7 +877,7 @@ Settings.labels = {
         end,
     },
 
-    -- Setting 'font'
+    -- Setting 'font' (string)
     -- Description: The font object
     -- Values: Any string that refers to a font object in the global namespace
     font = {
@@ -717,7 +888,7 @@ Settings.labels = {
         end,
     },
 
-    -- Setting 'anchor'
+    -- Setting 'anchor' (table)
     -- Description: An anchor used to position the label
     -- Values: { point (string)         - Point on the label to anchor with
     --         , relativePoint (string) - Point on the orb to anchor to
@@ -735,15 +906,15 @@ Settings.labels = {
 
         _mirror = function(anchor)
             return {
-                point = mirroredAnchors[anchor.point],
-                relativePoint = mirroredAnchors[anchor.relativePoint],
+                point = OrbFrames.mirroredAnchors[anchor.point],
+                relativePoint = OrbFrames.mirroredAnchors[anchor.relativePoint],
                 x = -anchor.x,
                 y = anchor.y,
             }
         end,
     },
 
-    -- Setting 'width'
+    -- Setting 'width' (number)
     -- Description: The maximum width of the label
     width = {
         _apply = function(label, width)
@@ -751,7 +922,7 @@ Settings.labels = {
         end,
     },
     
-    -- Setting 'height'
+    -- Setting 'height' (number)
     -- Description: The maximum height of the label
     height = {
         _apply = function(label, height)
@@ -759,7 +930,7 @@ Settings.labels = {
         end,
     },
 
-    -- Setting 'justifyH'
+    -- Setting 'justifyH' (string)
     -- Description: The horizontal justification for the text
     -- Values: 'LEFT', 'CENTER', 'RIGHT'
     justifyH = {
@@ -768,11 +939,11 @@ Settings.labels = {
         end,
 
         _mirror = function(justifyH)
-            return mirroredAlignments[justifyH]
+            return OrbFrames.mirroredAlignments[justifyH]
         end,
     },
 
-    -- Setting 'justifyV'
+    -- Setting 'justifyV' (string)
     -- Description: The vertical justification for the text
     -- Values: 'TOP', 'MIDDLE', 'BOTTOM'
     justifyV = {
@@ -781,7 +952,7 @@ Settings.labels = {
         end,
     },
 
-    -- Setting 'showOnlyOnHover'
+    -- Setting 'showOnlyOnHover' (boolean)
     -- Description: Whether the label should only be visible while hovering
     --              over the orb
     showOnlyOnHover = {
@@ -822,15 +993,14 @@ end
 function Orb:CreateOrbFill()
     if self.fill == nil then
         local fill = self:CreateTexture()
-        fill:SetDrawLayer('ARTWORK', 0)
-        local texture = self.settings.fill.texture
-        if texture ~= nil then ApplyTexture(fill, texture) end
+        fill:SetDrawLayer('ARTWORK', -2)
+        self:SetOrbFillTexture()
         self.fill = fill
-        self:SetFillAnchors()
+        self:SetOrbFillAnchors()
     end
 end
 
-function Orb:SetFillAnchors()
+function Orb:SetOrbFillAnchors()
     local direction = self.settings.direction
     local fill = self.fill
     fill:ClearAllPoints()
@@ -853,18 +1023,35 @@ function Orb:SetFillAnchors()
     end
 end
 
-function Orb:CreateOrbOverFill()
-    if self.overfill == nil then
-        local overfill = self:CreateTexture()
-        overfill:SetDrawLayer('ARTWORK', 1)
-        local texture = self.settings.overfill.texture
-        if texture ~= nil then ApplyTexture(overfill, texture) end
-        self.overfill = overfill
-        self:SetOverFillAnchors()
+function Orb:SetOrbFillTexture()
+    local fill = self.fill
+    if fill == nil then return end
+    local fillSettings = self.settings.fill
+    local resource = self.resource
+    if resource == 'health' then
+        resource = 'HEALTH'
+    elseif resource == 'power' then
+        resource = select(2, UnitPowerType(self.unit))
+    end
+    if fillSettings.resourceTextures[resource] ~= nil then
+        ApplyTexture(fill, fillSettings.resourceTextures[resource])
+    else
+        ApplyTexture(fill, fillSettings.texture or '')
     end
 end
 
-function Orb:SetOverFillAnchors()
+function Orb:CreateOrbOverfill()
+    if self.overfill == nil then
+        local overfill = self:CreateTexture()
+        overfill:SetDrawLayer('ARTWORK', -1)
+        local texture = self.settings.overfill.texture
+        if texture ~= nil then ApplyTexture(overfill, texture) end
+        self.overfill = overfill
+        self:SetOverfillAnchors()
+    end
+end
+
+function Orb:SetOverfillAnchors()
     local direction = self.settings.direction
     local overfill = self.overfill
     overfill:ClearAllPoints()
@@ -910,8 +1097,202 @@ function Orb:CreateOrbBorderArt()
 end
 
 -- ============================================================================
---  E. Labels
+--  E. Pips
 -- ============================================================================
+
+function Orb:AddOrbPip()
+    local pip = self:CreateTexture()
+    pip:SetDrawLayer('ARTWORK', 3)
+    table.insert(self.pips, pip)
+end
+
+function Orb:GetOrbPipCount()
+    if self.resource == 'power' then
+        local powerID, powerType = UnitSecondaryPowerType(self.unit)
+        return UnitPower(self.unit, powerID), UnitPowerMax(self.unit, powerID)
+    else
+        return 0, 0
+    end
+end
+
+function Orb:UpdateOrbPips()
+    local pipSettings = self.settings.pips
+    if self.resource == 'power' and pipSettings.shape ~= 'none' then
+        local pipCount, pipMaxCount = self:GetOrbPipCount()
+        if pipMaxCount > #self.pips then
+            while pipMaxCount > #self.pips do
+                self:AddOrbPip()
+            end
+            self:SetOrbPipShape()
+        end
+        self:SetOrbPipTextures()
+    else
+        for n, pip in ipairs(self.pips) do
+            pip:Hide()
+        end
+    end
+end
+
+function Orb:SetOrbPipShape()
+    local pipSettings = self.settings.pips
+    local pipCount, pipMaxCount = self:GetOrbPipCount()
+    local rotatePips = pipSettings.rotatePips
+    local baseRotation = math.rad(pipSettings.baseRotation)
+    if pipSettings.shape == 'arc' then
+        local radius = pipSettings.radius
+        local centerPoint = pipSettings.centerPoint
+        local rotatePips = pipSettings.rotatePips
+        local arcStart, arcEnd = unpack(pipSettings.arcSegment)
+        local arcStep
+        if (arcEnd - arcStart) % 360 == 0 then
+            arcStep = (arcEnd - arcStart) / pipMaxCount
+        else
+            arcStep = (arcEnd - arcStart) / (pipMaxCount-1)
+        end
+        for n, pip in ipairs(self.pips) do
+            if n > pipMaxCount then break end
+            local theta = math.rad(arcStart + arcStep * (n-1))
+            local x = radius * math.cos(theta) + centerPoint[1]
+            local y = radius * math.sin(theta) + centerPoint[2]
+            pip:SetPoint('CENTER', self, 'CENTER', x, y)
+            if rotatePips then
+                pip:SetRotation(baseRotation + theta)
+            else
+                pip:SetRotation(baseRotation)
+            end
+        end
+    elseif pipSettings.shape == 'orb' then
+        local radius = (self.settings.size / 2) + pipSettings.radiusOffset
+        local arcStart, arcEnd = unpack(pipSettings.arcSegment)
+        local arcStep
+        if (arcEnd - arcStart) % 360 == 0 then
+            arcStep = (arcEnd - arcStart) / pipMaxCount
+        else
+            arcStep = (arcEnd - arcStart) / (pipMaxCount-1)
+        end
+        for n, pip in ipairs(self.pips) do
+            if n > pipMaxCount then break end
+            local theta = math.rad(arcStart + arcStep * (n-1))
+            local x = radius * math.cos(theta)
+            local y = radius * math.sin(theta)
+            pip:SetPoint('CENTER', self, 'CENTER', x, y)
+            if rotatePips then
+                pip:SetRotation(baseRotation + theta)
+            else
+                pip:SetRotation(baseRotation)
+            end
+        end
+    elseif pipSettings.shape == 'line' then
+        local x1, y1, x2, y2 = unpack(pipSettings.lineSegment)
+        local xStep = (x2 - x1) / (pipMaxCount - 1)
+        local yStep = (y2 - y1) / (pipMaxCount - 1)
+        local theta = math.atan2(xStep, yStep)
+        for n, pip in ipairs(self.pips) do
+            if n > pipMaxCount then break end
+            local x = x1 + xStep * (n-1)
+            local y = y1 + yStep * (n-1)
+            pip:SetPoint('CENTER', self, 'CENTER', x, y)
+            if rotatePips then
+                pip:SetRotation(baseRotation + theta)
+            else
+                pip:SetRotation(baseRotation)
+            end
+        end
+    elseif pipSettings.shape == 'edge' then
+        local edge = pipSettings.edge
+        local edgeOffset = pipSettings.edgeOffset
+        local edgeSegment = pipSettings.edgeSegment
+        local w, h = self:GetWidth(), self:GetHeight()
+        local x1, y1, x2, y2
+        if edge == 'top' then
+            x1, y1 = edgeSegment[1] * w, h - edgeOffset
+            x2, y2 = edgeSegment[2] * w, h - edgeOffset
+        elseif edge == 'bottom' then
+            x1, y1 = edgeSegment[1] * w, edgeOffset
+            x2, y2 = edgeSegment[2] * w, edgeOffset
+        elseif edge == 'left' then
+            x1, y1 = edgeOffset, edgeSegment[1] * h
+            x2, y2 = edgeOffset, edgeSegment[2] * h
+        elseif edge == 'right' then
+            x1, y1 = w - edgeOffset, edgeSegment[1] * h
+            x2, y2 = w - edgeOffset, edgeSegment[2] * h
+        end
+        local xStep = (x2 - x1) / (pipMaxCount-1)
+        local yStep = (y2 - y1) / (pipMaxCount-1)
+        local theta = math.atan2(xStep, yStep)
+        for n, pip in ipairs(self.pips) do
+            if n > pipMaxCount then break end
+            local x = x1 + xStep * (n-1)
+            local y = y1 + yStep * (n-1)
+            pip:SetPoint('CENTER', self, 'BOTTOMLEFT', x, y)
+            if rotatePips then
+                pip:SetRotation(baseRotation + theta)
+            else
+                pip:SetRotation(baseRotation)
+            end
+        end
+    end
+    for i=pipMaxCount+1, #self.pips do
+        self.pips[i]:Hide()
+    end
+end
+
+function Orb:SetOrbPipTextures()
+    local pipSettings = self.settings.pips
+    if self.resource == 'power' then
+        local textures = pipSettings.textures or { '', '' }
+        local size = pipSettings.size
+        local powerID, powerType = UnitSecondaryPowerType(self.unit)
+        local pipCount = UnitPower(self.unit, powerID)
+        if powerType and pipSettings.resourceTextures[powerType] ~= nil then
+            textures = pipSettings.resourceTextures[powerType]
+        end
+        for n, pip in ipairs(self.pips) do
+            pip:SetWidth(size)
+            pip:SetHeight(size)
+            if n <= pipCount then
+                ApplyTexture(pip, textures[1])
+            else
+                ApplyTexture(pip, textures[2])
+            end
+        end
+    end
+end
+
+-- ============================================================================
+--  F. Labels
+-- ============================================================================
+
+function Orb:AddOrbLabel(labelName)
+    if self.labels[labelName] then return end
+
+    local label = self:CreateFontString()
+    self.labels[labelName] = label
+    self.settings.labels[labelName] = self.settings.labels[labelName] or { }
+    label.settings = self.settings.labels[labelName]
+    label.orb = self
+
+    self:SetOrbLabelDrawLayer(label)
+
+    label.name = labelName
+end
+
+function Orb:UpdateOrbLabel(label)
+    -- TODO: only update the text when necessary
+    -- this will require the completion of the analysis step
+    -- in OrbSettings.labels.text._apply()
+    local unit = self.unit
+    local resource = self.resource
+    local text = label.settings.text
+    local formattedText = string.gsub(text, '{([^}]*)}', function(tag)
+        if not UnitExists(unit) then
+            return '-'
+        else
+            return self:ReadOrbLabelTag(tag)
+        end
+    end)
+    label:SetText(formattedText)
+end
 
 local LabelTags = { }
 
@@ -992,7 +1373,7 @@ function LabelTags.resourcePercent(orb)
 end
 
 -- ============================================================================
---  F. Local values and helper functions
+--  G. Local values and helper functions
 -- ============================================================================
 
 local defaultSettings = {
@@ -1019,12 +1400,30 @@ local defaultSettings = {
     },
     fill = {
         texture = '',
+        resourceTextures = { },
     },
     border = {
         texture = '',
     },
     borderArt = {
         texture = '',
+    },
+
+    pips = {
+        shape = 'none',
+        size = 0,
+        radius = 0,
+        centerPoint = { 0, 0 },
+        radiusOffset = 0,
+        arcSegment = { 0, 0 },
+        lineSegment = { 0, 0, 0, 0 },
+        edge = 'top',
+        edgeOffset = 0,
+        edgeSegment = { 0, 1 },
+        rotatePips = false,
+        baseRotation = 0,
+        textures = { '', '' },
+        resourceTextures = { },
     },
 
     labels = {
@@ -1043,31 +1442,6 @@ local defaultSettings = {
     },
 }
 
-mirroredAlignments = {
-    ['LEFT'] = 'RIGHT',
-    ['CENTER'] = 'CENTER',
-    ['RIGHT'] = 'LEFT',
-}
-
-mirroredAnchors = {
-    ['TOPLEFT'] = 'TOPRIGHT',
-    ['TOP'] = 'TOP',
-    ['TOPRIGHT'] = 'TOPLEFT',
-    ['RIGHT'] = 'LEFT',
-    ['BOTTOMRIGHT'] = 'BOTTOMLEFT',
-    ['BOTTOM'] = 'BOTTOM',
-    ['BOTTOMLEFT'] = 'BOTTOMRIGHT',
-    ['LEFT'] = 'RIGHT',
-    ['CENTER'] = 'CENTER',
-}
-
-mirroredDirections = {
-    ['up'] = 'up',
-    ['down'] = 'down',
-    ['left'] = 'right',
-    ['right'] = 'left',
-}
-
 function ApplyTexture(region, texture)
     if type(texture) == 'string' then
         region:SetTexture(texture)
@@ -1076,7 +1450,7 @@ function ApplyTexture(region, texture)
     end
 end
 
-function ReadSettings(settings)
+function ReadOrbSettings(settings)
     local readSettings = { }
 
     -- Iterator functions
@@ -1088,7 +1462,7 @@ function ReadSettings(settings)
     end
 
     -- Copy settings
-    TraverseSettings(settings, Settings, {
+    OrbFrames.TraverseSettings(settings, OrbSettings, {
         VisitSetting = function(name, value, schema, iterator)
             iterator.readSettings[name] = value
         end,
@@ -1107,9 +1481,9 @@ function ReadSettings(settings)
     if inheritName ~= nil then
         local inheritSettings = OrbFrames.db.profile.orbs[inheritName]
         if inheritSettings == nil then error('Inherited orb "'..inheritName..'" does not exist') end
-        inheritSettings = ReadSettings(inheritSettings)
+        inheritSettings = ReadOrbSettings(inheritSettings)
 
-        TraverseSettings(inheritSettings, Settings, {
+        OrbFrames.TraverseSettings(inheritSettings, OrbSettings, {
             VisitSetting = function(name, value, schema, iterator)
                 if iterator.readSettings[name] == nil then
                     if inheritStyle == 'mirror' then
@@ -1128,7 +1502,7 @@ function ReadSettings(settings)
     end
 
     -- Apply missing defaults
-    TraverseSettings(defaultSettings, Settings, {
+    OrbFrames.TraverseSettings(defaultSettings, OrbSettings, {
         VisitSetting = function(name, value, schema, iterator)
             if iterator.readSettings[name] == nil then
                 iterator.readSettings[name] = value
@@ -1139,7 +1513,7 @@ function ReadSettings(settings)
         EnterList = function(name, value, iterator)
             value, iterator = Enter(name, value, iterator)
             if value['*'] then
-                star = value['*']
+                local star = value['*']
                 value = { }
                 for name, _ in pairs(readSettings[name]) do
                     value[name] = star
@@ -1152,48 +1526,4 @@ function ReadSettings(settings)
     })
 
     return readSettings
-end
-
-function TraverseSettings(settings, schema, iterator)
-    -- iterator = {
-    --     VisitSetting = function(name, value, schema, iterator) return end,
-    --     EnterGroup = function(name, value, iterator) return value, iterator end,
-    --     EnterList = function(name, value, iterator) return value, iterator end,
-    --     EnterListElement = function(name, value, iterator) return value, iterator end,
-    --     ...,
-    -- }
-
-    -- Generate settings order if it hasn't been yet
-    if schema._order == nil then
-        local order = { }
-        for name, _ in pairs(schema) do
-            if not string.match(name, '^_') then
-                table.insert(order, name)
-            end
-        end
-        table.sort(order, function(l, r)
-            return (schema[l]._priority or 0) > (schema[r]._priority or 0)
-        end)
-        schema._order = order
-    end
-
-    -- Iterate through settings in order
-    for _, name in ipairs(schema._order) do
-        local schema = schema[name]
-        local value = settings[name]
-        if value ~= nil and not string.match(name, '^_') then
-            if schema._type == 'group' then
-                local value, iterator = iterator.EnterGroup(name, value, iterator)
-                TraverseSettings(value, schema, iterator)
-            elseif schema._type == 'list' then
-                local value, iterator = iterator.EnterList(name, value, iterator)
-                for name, value in pairs(value) do
-                    local value, iterator = iterator.EnterListElement(name, value, iterator)
-                    TraverseSettings(value, schema, iterator)
-                end
-            else
-                iterator.VisitSetting(name, value, schema, iterator)
-            end
-        end
-    end
 end

@@ -11,6 +11,36 @@ local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 
 local presets = OrbFrames.defaults.profile.orbs
 
+OrbFrames.defaults.profile.blizz = {
+    ['PlayerFrame'] = {
+        hidden = true,
+    },
+    ['PetFrame'] = {
+        hidden = true,
+    },
+    ['TargetFrame'] = {
+        hidden = true,
+    },
+    ['PartyMemberFrame1'] = {
+        hidden = false,
+    },
+    ['PartyMemberFrame2'] = {
+        hidden = false,
+    },
+    ['PartyMemberFrame3'] = {
+        hidden = false,
+    },
+    ['PartyMemberFrame4'] = {
+        hidden = false,
+    },
+    ['CompactRaidManagerFrame'] = {
+        hidden = false,
+    },
+    ['CastingBarFrame'] = {
+        hidden = false,
+    },
+}
+
 -- ============================================================================
 --  A. Player
 -- ============================================================================
@@ -40,6 +70,16 @@ presets['PlayerHealth'] = {
     },
     fill = {
         texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+--[[ TODO:
+        resourceTextures = {
+            ['HEALTH'] = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+            ['MANA'] = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+            ['RAGE'] = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+            ['FOCUS'] = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+            ['ENERGY'] = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+            ['RUNIC_POWER'] = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+        },
+--]]
     },
     overfill = {
         texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
@@ -75,6 +115,39 @@ presets['PlayerPower'] = {
     inheritStyle = 'mirror',
 
     resource = 'power',
+
+    pips = {
+        shape = 'orb',
+        size = 20,
+        radiusOffset = 0,
+        arcSegment = { 115, 165 },
+        rotatePips = true,
+        baseRotation = 0,
+        textures = {
+            'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+            { 0, 0, 0 }, -- TODO
+        },
+--[[ TODO:
+        resourceTextures = {
+            ['COMBO_POINTS'] = {
+                '',
+                '',
+            },
+            ['RUNES'] = {
+                '',
+                '',
+            },
+            ['SOUL_SHARDS'] = {
+                '',
+                '',
+            },
+            ['HOLY_POWER'] = {
+                '',
+                '',
+            },
+        },
+--]]
+    },
 }
 
 -- ============================================================================
@@ -154,7 +227,7 @@ presets['TargetHealth'] = {
 
     labels = {
         ['name'] = {
-            text = '{name:titlecase}',
+            text = '{name}',
             font = 'GameFontWhite',
             anchor = {
                 point = 'TOP',
