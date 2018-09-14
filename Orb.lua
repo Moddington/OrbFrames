@@ -86,6 +86,7 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
         backdrop = { },
         backdropArt = { },
         fill = { },
+        overfill = { },
         border = { },
         borderArt = { },
 
@@ -255,6 +256,12 @@ function Orb:UpdateOrb()
             fill:Hide()
         end
 
+        -- Update overfill height
+        if resource == 'health' then
+            -- TODO: overfill for health is absorb
+            --       keep track of absorbs to maintain the maximum value
+        end
+
         -- Update fill color
         local colors = OrbFrames.db.profile.colors
         local colorStyle = self.settings.colorStyle
@@ -314,6 +321,7 @@ local Settings = { }
 
 function Orb:ApplyOrbSettings(settings)
     -- Read orb settings to acquire inherited and default values
+    print(self:GetName())
     settings = ReadSettings(settings)
 
     -- Suspend orb updates
@@ -329,28 +337,28 @@ function Orb:ApplyOrbSettings(settings)
     local function VisitLabelSetting(name, value, schema, iterator)
         if iterator.settings[name] ~= value then
             iterator.settings[name] = value
-            schema._apply(self, iterator.label, value)
+            schema._apply(iterator.label, value)
         end
     end
-    local function Enter(name, iterator)
-        local iterator = table.copy(iterator)
+    local function Enter(name, value, iterator)
+        iterator = table.copy(iterator)
         iterator.settings[name] = iterator.settings[name] or { }
         iterator.settings = iterator.settings[name]
-        return iterator
+        return value, iterator
     end
-    local function EnterLabel(name, iterator)
+    local function EnterLabel(name, value, iterator)
         self:AddOrbLabel(name)
-        local iterator = Enter(name, iterator)
+        value, iterator = Enter(name, value, iterator)
         iterator.label = self.labels[name]
-        return iterator
+        return value, iterator
     end
-    local function EnterList(name, iterator)
-        local iterator = Enter(name, iterator)
+    local function EnterList(name, value, iterator)
+        value, iterator = Enter(name, value, iterator)
         if name == 'labels' then
             iterator.VisitSetting = VisitLabelSetting
             iterator.EnterListElement = EnterLabel
         end
-        return iterator
+        return value, iterator
     end
     TraverseSettings(settings, Settings, {
         VisitSetting = VisitSetting,
@@ -366,15 +374,15 @@ function Orb:ApplyOrbSettings(settings)
     self:UpdateOrb()
 end
 
-function Orb:ApplyOrbSetting(name, value, groupName)
+function Orb:ApplyOrbSetting(path, value)
     local Settings = Settings
     local settings = self.settings
-    if groupName then
-        if Settings[groupName] == nil then return end
-        settings[groupName] = settings[groupName] or { }
-        settings = settings[groupName]
-        Settings = Settings[groupName]
-    end
+    local name = string.gsub(path, '(.-)\.', function(tableName)
+        Settings = Settings[tableName]
+        settings[tableName] = settings[tableName] or { }
+        settings = settings[tableName]
+        return ''
+    end)
     if value ~= settings[name] then
         settings[name] = value
         Settings[name]._apply(self, value)
@@ -388,17 +396,26 @@ function Orb:AddOrbLabel(labelName)
     self.labels[labelName] = label
     self.settings.labels[labelName] = self.settings.labels[labelName] or { }
     label.settings = self.settings.labels[labelName]
+    label.orb = self
 
     self:SetOrbLabelDrawLayer(label)
 
     label.name = labelName
 end
 
-function Orb:ApplyOrbLabelSetting(labelName, name, value)
+function Orb:ApplyOrbLabelSetting(labelName, path, value)
     local label = self.labels[labelName]
-    if value ~= label.settings[name] then
-        label.settings[name] = value
-        Settings.labels[name]._apply(self, label, value)
+    local Settings = Settings.labels
+    local settings = label.settings
+    local name = string.gsub(path, '(.-)\.', function(tableName)
+        Settings = Settings[tableName]
+        settings[tableName] = settings[tableName] or { }
+        settings = settings[tableName]
+        return ''
+    end)
+    if value ~= settings[name] then
+        settings[name] = value
+        Settings[name]._apply(label, value)
     end
 end
 
@@ -443,6 +460,7 @@ Settings.style = {
             orb:CreateOrbBackdrop()
             orb:CreateOrbBackdropArt()
             orb:CreateOrbFill()
+            orb:CreateOrbOverFill()
             orb:CreateOrbBorder()
             orb:CreateOrbBorderArt()
         end
@@ -682,10 +700,9 @@ Settings.labels = {
     -- Values: A string optionally containing tags wrapped in {} braces.
     --         See the LabelTags table for a list of tags.
     text = {
-        _apply = function(orb, label, text)
-            -- TODO: Analyze the format string
-            -- Update the label
-            orb:UpdateOrbLabel(label)
+        _apply = function(label, text)
+            -- TODO: Analyze the format string here
+            label.orb:UpdateOrbLabel(label)
         end,
     },
 
@@ -695,7 +712,7 @@ Settings.labels = {
     font = {
         _priority = 10,
 
-        _apply = function(orb, label, font)
+        _apply = function(label, font)
             label:SetFontObject(_G[font]) -- TODO: better font lookup
         end,
     },
@@ -712,8 +729,8 @@ Settings.labels = {
     -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
     --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
     anchor = {
-        _apply = function(orb, label, anchor)
-            orb:SetOrbLabelAnchors(label)
+        _apply = function(label, anchor)
+            label.orb:SetOrbLabelAnchors(label)
         end,
 
         _mirror = function(anchor)
@@ -729,7 +746,7 @@ Settings.labels = {
     -- Setting 'width'
     -- Description: The maximum width of the label
     width = {
-        _apply = function(orb, label, width)
+        _apply = function(label, width)
             label:SetWidth(width)
         end,
     },
@@ -737,7 +754,7 @@ Settings.labels = {
     -- Setting 'height'
     -- Description: The maximum height of the label
     height = {
-        _apply = function(orb, label, height)
+        _apply = function(label, height)
             label:SetHeight(height)
         end,
     },
@@ -746,7 +763,7 @@ Settings.labels = {
     -- Description: The horizontal justification for the text
     -- Values: 'LEFT', 'CENTER', 'RIGHT'
     justifyH = {
-        _apply = function(orb, label, justifyH)
+        _apply = function(label, justifyH)
             label:SetJustifyH(justifyH)
         end,
 
@@ -759,7 +776,7 @@ Settings.labels = {
     -- Description: The vertical justification for the text
     -- Values: 'TOP', 'MIDDLE', 'BOTTOM'
     justifyV = {
-        _apply = function(orb, label, justifyV)
+        _apply = function(label, justifyV)
             label:SetJustifyV(justifyV)
         end,
     },
@@ -768,8 +785,8 @@ Settings.labels = {
     -- Description: Whether the label should only be visible while hovering
     --              over the orb
     showOnlyOnHover = {
-        _apply = function(orb, label, showOnlyOnHover)
-            orb:SetOrbLabelDrawLayer(label)
+        _apply = function(label, showOnlyOnHover)
+            label.orb:SetOrbLabelDrawLayer(label)
         end,
     },
 
@@ -833,6 +850,40 @@ function Orb:SetFillAnchors()
         fill:SetPoint('TOPLEFT')
         fill:SetPoint('BOTTOMLEFT')
         fill:SetWidth(self:GetWidth())
+    end
+end
+
+function Orb:CreateOrbOverFill()
+    if self.overfill == nil then
+        local overfill = self:CreateTexture()
+        overfill:SetDrawLayer('ARTWORK', 1)
+        local texture = self.settings.overfill.texture
+        if texture ~= nil then ApplyTexture(overfill, texture) end
+        self.overfill = overfill
+        self:SetOverFillAnchors()
+    end
+end
+
+function Orb:SetOverFillAnchors()
+    local direction = self.settings.direction
+    local overfill = self.overfill
+    overfill:ClearAllPoints()
+    if direction == 'up' then
+        overfill:SetPoint('BOTTOMLEFT')
+        overfill:SetPoint('BOTTOMRIGHT')
+        overfill:SetHeight(self:GetHeight())
+    elseif direction == 'down' then
+        overfill:SetPoint('TOPLEFT')
+        overfill:SetPoint('TOPRIGHT')
+        overfill:SetHeight(self:GetHeight())
+    elseif direction == 'left' then
+        overfill:SetPoint('TOPRIGHT')
+        overfill:SetPoint('BOTTOMRIGHT')
+        overfill:SetWidth(self:GetWidth())
+    elseif direction == 'right' then
+        overfill:SetPoint('TOPLEFT')
+        overfill:SetPoint('BOTTOMLEFT')
+        overfill:SetWidth(self:GetWidth())
     end
 end
 
@@ -977,7 +1028,18 @@ local defaultSettings = {
     },
 
     labels = {
-        -- TODO
+        ['*'] = {
+            text = '',
+            font = 'GameFontWhite',
+            anchor = {
+                point = 'CENTER',
+            },
+            width = 0,
+            height = 0,
+            justifyH = 'LEFT',
+            justifyV = 'TOP',
+            showOnlyOnHover = false,
+        },
     },
 }
 
@@ -1018,11 +1080,11 @@ function ReadSettings(settings)
     local readSettings = { }
 
     -- Iterator functions
-    local function Enter(name, iterator)
-        local iterator = table.copy(iterator)
+    local function Enter(name, value, iterator)
+        iterator = table.copy(iterator)
         iterator.readSettings[name] = iterator.readSettings[name] or { }
         iterator.readSettings = iterator.readSettings[name]
-        return iterator
+        return value, iterator
     end
 
     -- Copy settings
@@ -1035,6 +1097,9 @@ function ReadSettings(settings)
         EnterListElement = Enter,
         readSettings = readSettings,
     })
+
+    -- Prevent these settings from being inherited
+    if readSettings.enabled == nil then readSettings.enabled = true end
 
     -- Inherit settings
     local inheritName = settings.inherit
@@ -1069,12 +1134,21 @@ function ReadSettings(settings)
                 iterator.readSettings[name] = value
             end
         end,
+
         EnterGroup = Enter,
-        EnterList = Enter,
+        EnterList = function(name, value, iterator)
+            value, iterator = Enter(name, value, iterator)
+            if value['*'] then
+                star = value['*']
+                value = { }
+                for name, _ in pairs(readSettings[name]) do
+                    value[name] = star
+                end
+            end
+            return value, iterator
+        end,
         EnterListElement = Enter,
         readSettings = readSettings,
-        inheritSettings = inheritSettings,
-        defaultSettings = defaultSettings,
     })
 
     return readSettings
@@ -1082,10 +1156,10 @@ end
 
 function TraverseSettings(settings, schema, iterator)
     -- iterator = {
-    --     VisitSetting = function(name, value, schema, iterData) return end,
-    --     EnterGroup = function(name, iterData) return iterData end,
-    --     EnterList = function(name, iterData) return iterData end,
-    --     EnterListElement = function(name, iterData) return iterData end,
+    --     VisitSetting = function(name, value, schema, iterator) return end,
+    --     EnterGroup = function(name, value, iterator) return value, iterator end,
+    --     EnterList = function(name, value, iterator) return value, iterator end,
+    --     EnterListElement = function(name, value, iterator) return value, iterator end,
     --     ...,
     -- }
 
@@ -1109,12 +1183,12 @@ function TraverseSettings(settings, schema, iterator)
         local value = settings[name]
         if value ~= nil and not string.match(name, '^_') then
             if schema._type == 'group' then
-                local iterator = iterator.EnterGroup(name, iterator)
+                local value, iterator = iterator.EnterGroup(name, value, iterator)
                 TraverseSettings(value, schema, iterator)
             elseif schema._type == 'list' then
-                local iterator = iterator.EnterList(name, iterator)
+                local value, iterator = iterator.EnterList(name, value, iterator)
                 for name, value in pairs(value) do
-                    local iterator = iterator.EnterListElement(name, iterator)
+                    local value, iterator = iterator.EnterListElement(name, value, iterator)
                     TraverseSettings(value, schema, iterator)
                 end
             else

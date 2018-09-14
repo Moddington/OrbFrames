@@ -41,6 +41,9 @@ presets['PlayerHealth'] = {
     fill = {
         texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
     },
+    overfill = {
+        texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+    },
     border = {
         texture = '',
     },
@@ -50,13 +53,13 @@ presets['PlayerHealth'] = {
 
     labels = {
         ['resource'] = {
-            text = '{resourceName}: {resource}/{resourceMax} ({resourcePercent}%)\n',
+            text = '{resourceName}: {resource}/{resourceMax} ({resourcePercent}%)',
             font = 'GameFontWhite',
             anchor = {
                 point = 'BOTTOMLEFT',
                 relativePoint = 'TOPLEFT',
                 x = 5,
-                y = -5,
+                y = 5,
             },
             width = 0,
             justifyH = 'LEFT',
