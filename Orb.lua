@@ -178,7 +178,7 @@ function Orb:RegisterOrbEvents()
             self:RegisterEvent('UNIT_HEALTH')
             self:RegisterEvent('UNIT_HEALTH_FREQUENT')
             self:RegisterEvent('UNIT_MAXHEALTH')
-        elseif resource == 'power' then
+        elseif resource == 'power' or resource == 'power2' then
             self:RegisterEvent('UNIT_POWER_UPDATE')
             self:RegisterEvent('UNIT_POWER_FREQUENT')
             self:RegisterEvent('UNIT_MAXPOWER')
@@ -235,6 +235,12 @@ function Orb:UpdateOrb()
             proportion = UnitHealth(unit) / UnitHealthMax(unit)
         elseif resource == 'power' then
             proportion = UnitPower(unit) / UnitPowerMax(unit)
+        elseif resource == 'power2' then
+            if UnitPower2Type(unit) == nil then
+                proportion = 0
+            else
+                proportion = UnitPower2(unit) / UnitPower2Max(unit)
+            end
         elseif resource == 'full' then
             proportion = 1
         elseif resource == 'empty' then
@@ -276,8 +282,13 @@ function Orb:UpdateOrb()
         elseif colorStyle == 'resource' then
             if resource == 'health' then
                 color = colors.resources['HEALTH']
-            else
+            elseif resource == 'power' then
                 color = colors.resources[select(2, UnitPowerType(unit))]
+            elseif resource == 'power2' then
+                local powerType = select(2, UnitPower2Type(unit))
+                if powerType then
+                    color = colors.resources[powerType]
+                end
             end
         end
         if color ~= nil then
@@ -459,6 +470,7 @@ OrbSettings.unit = {
 -- Description: Which resource the orb is displaying
 -- Values: 'health' - The unit's health
 --         'power'  - The unit's primary power type
+--         'power2' - The unit's secondary power type
 --         'empty'  - Always show an empty orb
 --         'full'   - Always show a full orb
 OrbSettings.resource = {
@@ -1108,8 +1120,7 @@ end
 
 function Orb:GetOrbPipCount()
     if self.resource == 'power' then
-        local powerID, powerType = UnitSecondaryPowerType(self.unit)
-        return UnitPower(self.unit, powerID), UnitPowerMax(self.unit, powerID)
+        return UnitPower2(self.unit), UnitPower2Max(self.unit)
     else
         return 0, 0
     end
@@ -1242,8 +1253,8 @@ function Orb:SetOrbPipTextures()
     if self.resource == 'power' then
         local textures = pipSettings.textures or { '', '' }
         local size = pipSettings.size
-        local powerID, powerType = UnitSecondaryPowerType(self.unit)
-        local pipCount = UnitPower(self.unit, powerID)
+        local pipCount = UnitPower2(self.unit)
+        local powerType = select(2, UnitPower2Type(self.unit))
         if powerType and pipSettings.resourceTextures[powerType] ~= nil then
             textures = pipSettings.resourceTextures[powerType]
         end
@@ -1281,20 +1292,21 @@ function Orb:UpdateOrbLabel(label)
     -- TODO: only update the text when necessary
     -- this will require the completion of the analysis step
     -- in OrbSettings.labels.text._apply()
+    label:SetText(self:FormatTaggedText(label.settings.text))
+end
+
+local LabelTags = { }
+
+function Orb:FormatTaggedText(text)
     local unit = self.unit
-    local resource = self.resource
-    local text = label.settings.text
-    local formattedText = string.gsub(text, '{([^}]*)}', function(tag)
+    return string.gsub(text, '{([^}]*)}', function(tag)
         if not UnitExists(unit) then
             return '-'
         else
             return self:ReadOrbLabelTag(tag)
         end
     end)
-    label:SetText(formattedText)
 end
-
-local LabelTags = { }
 
 function Orb:ReadOrbLabelTag(name)
     if LabelTags[name] == nil then
@@ -1317,6 +1329,13 @@ function LabelTags.resourceName(orb)
         return 'Health'
     elseif orb.resource == 'power' then
         return L['POWER_'..select(2, UnitPowerType(orb.unit))]
+    elseif orb.resource == 'power2' then
+        local powerType = select(2, UnitPower2Type(orb.unit))
+        if powerType then
+            return L['POWER_'..powerType]
+        else
+            return '-'
+        end
     end
 end
 
@@ -1325,6 +1344,8 @@ function LabelTags.resource(orb)
         return tostring(UnitHealth(orb.unit))
     elseif orb.resource == 'power' then
         return tostring(UnitPower(orb.unit))
+    elseif orb.resource == 'power2' then
+        return tostring(UnitPower2(orb.unit))
     end
 end
 
@@ -1333,6 +1354,8 @@ function LabelTags.resourceMax(orb)
         return tostring(UnitHealthMax(orb.unit))
     elseif orb.resource == 'power' then
         return tostring(UnitPowerMax(orb.unit))
+    elseif orb.resource == 'power2' then
+        return tostring(UnitPower2Max(orb.unit))
     end
 end
 
@@ -1341,6 +1364,8 @@ function LabelTags.resourcePercent(orb)
         return tostring(math.floor(UnitHealth(orb.unit) / UnitHealthMax(orb.unit) * 100))
     elseif orb.resource == 'power' then
         return tostring(math.floor(UnitPower(orb.unit) / UnitPowerMax(orb.unit) * 100))
+    elseif orb.resource == 'power2' then
+        return tostring(math.floor(UnitPower2(orb.unit) / UnitPower2Max(orb.unit) * 100))
     end
 end
 
@@ -1368,8 +1393,29 @@ function LabelTags.powerMax(orb)
     return tostring(UnitPowerMax(orb.unit))
 end
 
-function LabelTags.resourcePercent(orb)
+function LabelTags.powerPercent(orb)
     return tostring(math.floor(UnitPower(orb.unit) / UnitPowerMax(orb.unit) * 100))
+end
+
+function LabelTags.power2Name(orb)
+    local powerType = select(2, UnitPower2Type(orb.unit))
+    if powerType then
+        return L['POWER_'..powerType]
+    else
+        return '-'
+    end
+end
+
+function LabelTags.power2(orb)
+    return tostring(UnitPower2(orb.unit))
+end
+
+function LabelTags.power2Max(orb)
+    return tostring(UnitPower2Max(orb.unit))
+end
+
+function LabelTags.power2Percent(orb)
+    return tostring(math.floor(UnitPower2(orb.unit) / UnitPower2Max(orb.unit) * 100))
 end
 
 -- ============================================================================

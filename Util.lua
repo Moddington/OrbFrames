@@ -12,13 +12,31 @@ function table.copy(t)
 	return t2
 end
 
-local secondaryPowerTypes = {
+local power2Types = {
     ['ROGUE'] = { 4, 'COMBO_POINTS' },
     ['DEATH_KNIGHT'] = { 5, 'RUNES' },
     ['WARLOCK'] = { 7, 'SOUL_SHARDS' },
     ['PALADIN'] = { 9, 'HOLY_POWER' },
 }
-function UnitSecondaryPowerType(unitID)
+function UnitPower2Type(unitID)
     local class = select(2, UnitClass(unitID))
-    return unpack(secondaryPowerTypes[class] or { })
+    return unpack(power2Types[class] or { })
+end
+
+function UnitPower2(unitID)
+    local powerID = UnitPower2Type(unitID)
+    if powerID then
+        return UnitPower(unitID, powerID)
+    else
+        return 0
+    end
+end
+
+function UnitPower2Max(unitID)
+    local powerID = UnitPower2Type(unitID)
+    if powerID then
+        return UnitPowerMax(unitID, powerID)
+    else
+        return 0
+    end
 end
