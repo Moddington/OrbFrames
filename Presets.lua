@@ -93,7 +93,8 @@ presets['PlayerHealth'] = {
 
     labels = {
         ['resource'] = {
-            text = '{resourceName}: {resource}/{resourceMax} ({resourcePercent}%)',
+            text = '{resourceName}: {resource}/{resourceMax} ({resourcePercent}%)'
+                .. '{hasResource2:\n{resource2Name}: {resource2}/{resource2Max} ({resource2Percent}%)}',
             font = 'GameFontWhite',
             anchor = {
                 point = 'BOTTOMLEFT',

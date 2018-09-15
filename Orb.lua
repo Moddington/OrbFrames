@@ -232,14 +232,25 @@ function Orb:UpdateOrb()
         if not UnitExists(unit) then
             proportion = 0
         elseif resource == 'health' then
-            proportion = UnitHealth(unit) / UnitHealthMax(unit)
-        elseif resource == 'power' then
-            proportion = UnitPower(unit) / UnitPowerMax(unit)
-        elseif resource == 'power2' then
-            if UnitPower2Type(unit) == nil then
-                proportion = 0
+            local health, healthMax = UnitHealth(unit), UnitHealthMax(unit)
+            if healthMax > 0 then
+                proportion = health / healthMax
             else
-                proportion = UnitPower2(unit) / UnitPower2Max(unit)
+                proportion = 0
+            end
+        elseif resource == 'power' then
+            local power, powerMax = UnitPower(unit), UnitPowerMax(unit)
+            if powerMax > 0 then
+                proportion = power / powerMax
+            else
+                proportion = 0
+            end
+        elseif resource == 'power2' then
+            local power2, power2Max = UnitPower2(unit), UnitPower2Max(unit)
+            if power2Max > 0 then
+                proportion = power2 / power2Max
+            else
+                proportion = 0
             end
         elseif resource == 'full' then
             proportion = 1
@@ -1297,23 +1308,61 @@ end
 
 local LabelTags = { }
 
-function Orb:FormatTaggedText(text)
-    local unit = self.unit
-    return string.gsub(text, '{([^}]*)}', function(tag)
-        if not UnitExists(unit) then
-            return '-'
-        else
-            return self:ReadOrbLabelTag(tag)
-        end
-    end)
+local function ParseTags(text, callback)
 end
 
-function Orb:ReadOrbLabelTag(name)
-    if LabelTags[name] == nil then
-        return '-'
-    else
-        return LabelTags[name](self)
+function Orb:FormatTaggedText(text)
+    local unit = self.unit
+    local newText = ''
+    local state = 'start'
+    local segmentStart = 1
+    local braceDepth
+    local tagName
+    for i=1, #text do
+        local c = string.sub(text, i, i)
+        if state == 'start' then
+            if c == '{' then
+                state = 'tagName'
+                newText = newText..string.sub(text, segmentStart, i-1)
+                segmentStart = i+1
+            end
+        elseif state == 'tagName' then
+            if c == '}' then
+                state = 'start'
+                tagName = string.sub(text, segmentStart, i-1)
+                local tag = LabelTags[tagName]
+                if tag and UnitExists(unit) then
+                    newText = newText..tag(self)
+                else
+                    newText = newText..'-'
+                end
+                segmentStart = i+1
+            elseif c == ':' then
+                state = 'tagContents'
+                braceDepth = 1
+                tagName = string.sub(text, segmentStart, i-1)
+                segmentStart = i+1
+            end
+        elseif state == 'tagContents' then
+            if c == '{' then
+                braceDepth = braceDepth + 1
+            elseif c == '}' then
+                braceDepth = braceDepth - 1
+                if braceDepth == 0 then
+                    state = 'start'
+                    local tagContents = string.sub(text, segmentStart, i-1)
+                    local tag = LabelTags[tagName]
+                    if tag and UnitExists(unit) then
+                        newText = newText..tag(self, tagContents)
+                    else
+                        newText = newText..'-'
+                    end
+                    segmentStart = i+1
+                end
+            end
+        end
     end
+    return newText..string.sub(text, segmentStart)
 end
 
 function LabelTags.class(orb)
@@ -1328,44 +1377,79 @@ function LabelTags.resourceName(orb)
     if orb.resource == 'health' then
         return 'Health'
     elseif orb.resource == 'power' then
-        return L['POWER_'..select(2, UnitPowerType(orb.unit))]
+        return LabelTags.powerName(orb)
     elseif orb.resource == 'power2' then
-        local powerType = select(2, UnitPower2Type(orb.unit))
-        if powerType then
-            return L['POWER_'..powerType]
-        else
-            return '-'
-        end
+        return LabelTags.power2Name(orb)
     end
 end
 
 function LabelTags.resource(orb)
     if orb.resource == 'health' then
-        return tostring(UnitHealth(orb.unit))
+        return LabelTags.health(orb)
     elseif orb.resource == 'power' then
-        return tostring(UnitPower(orb.unit))
+        return LabelTags.power(orb)
     elseif orb.resource == 'power2' then
-        return tostring(UnitPower2(orb.unit))
+        return LabelTags.power2(orb)
     end
 end
 
 function LabelTags.resourceMax(orb)
     if orb.resource == 'health' then
-        return tostring(UnitHealthMax(orb.unit))
+        return LabelTags.healthMax(orb)
     elseif orb.resource == 'power' then
-        return tostring(UnitPowerMax(orb.unit))
+        return LabelTags.powerMax(orb)
     elseif orb.resource == 'power2' then
-        return tostring(UnitPower2Max(orb.unit))
+        return LabelTags.power2Max(orb)
     end
 end
 
 function LabelTags.resourcePercent(orb)
     if orb.resource == 'health' then
-        return tostring(math.floor(UnitHealth(orb.unit) / UnitHealthMax(orb.unit) * 100))
+        return LabelTags.healthPercent(orb)
     elseif orb.resource == 'power' then
-        return tostring(math.floor(UnitPower(orb.unit) / UnitPowerMax(orb.unit) * 100))
+        return LabelTags.powerPercent(orb)
     elseif orb.resource == 'power2' then
-        return tostring(math.floor(UnitPower2(orb.unit) / UnitPower2Max(orb.unit) * 100))
+        return LabelTags.power2Percent(orb)
+    end
+end
+
+function LabelTags.hasResource2(orb, tagContents)
+    if orb.resource == 'power' and UnitPower2Max(orb.unit) > 0 then
+        return orb:FormatTaggedText(tagContents)
+    else
+        return ''
+    end
+end
+
+function LabelTags.resource2Name(orb)
+    if orb.resource == 'power' then
+        return LabelTags.power2Name(orb)
+    else
+        return '-'
+    end
+end
+
+function LabelTags.resource2(orb)
+    if orb.resource == 'power' then
+        return LabelTags.power2(orb)
+    else
+        return '-'
+    end
+end
+
+function LabelTags.resource2Max(orb)
+    if orb.resource == 'power' then
+        return LabelTags.power2Max(orb)
+    else
+        return '-'
+    end
+end
+
+function LabelTags.resource2Percent(orb)
+    if orb.resource == 'power' then
+        return LabelTags.power2Percent(orb)
+    else
+        return '-'
     end
 end
 
@@ -1378,7 +1462,12 @@ function LabelTags.healthMax(orb)
 end
 
 function LabelTags.healthPercent(orb)
-    return tostring(math.floor(UnitHealth(orb.unit) / UnitHealthMax(orb.unit) * 100))
+    local health, healthMax = UnitHealth(orb.unit), UnitHealthMax(orb.unit)
+    if healthMax == 0 then
+        return '-'
+    else
+        return tostring(math.floor(health / healthMax * 100))
+    end
 end
 
 function LabelTags.powerName(orb)
@@ -1394,7 +1483,20 @@ function LabelTags.powerMax(orb)
 end
 
 function LabelTags.powerPercent(orb)
-    return tostring(math.floor(UnitPower(orb.unit) / UnitPowerMax(orb.unit) * 100))
+    local power, powerMax = UnitPower(orb.unit), UnitPowerMax(orb.unit)
+    if powerMax == 0 then
+        return '-'
+    else
+        return tostring(math.floor(power / powerMax * 100))
+    end
+end
+
+function LabelTags.hasPower2(orb, tagContents)
+    if UnitPower2Max(orb.unit) > 0 then
+        return orb:FormatTaggedText(tagContents)
+    else
+        return ''
+    end
 end
 
 function LabelTags.power2Name(orb)
@@ -1415,7 +1517,12 @@ function LabelTags.power2Max(orb)
 end
 
 function LabelTags.power2Percent(orb)
-    return tostring(math.floor(UnitPower2(orb.unit) / UnitPower2Max(orb.unit) * 100))
+    local power2, power2Max = UnitPower2(orb.unit), UnitPower2Max(orb.unit)
+    if power2Max == 0 then
+        return '-'
+    else
+        return tostring(math.floor(power2 / power2Max * 100))
+    end
 end
 
 -- ============================================================================
