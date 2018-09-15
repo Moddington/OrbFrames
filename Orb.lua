@@ -301,6 +301,8 @@ function Orb:UpdateOrb()
                     color = colors.resources[powerType]
                 end
             end
+        elseif colorStyle == 'reaction' then
+            color = { UnitSelectionColor(unit) }
         end
         if color ~= nil then
             fill:SetVertexColor(unpack(color))
@@ -496,6 +498,7 @@ OrbSettings.resource = {
 -- Description: The method used to choose the color for the orb liquid
 -- Values: 'class'    - The unit's class color
 --         'resource' - The resource's color
+--         'reaction' - The unit's reaction color
 OrbSettings.colorStyle = {
     _apply = function(orb, colorStyle)
         orb:UpdateOrb()

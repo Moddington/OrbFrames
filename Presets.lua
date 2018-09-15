@@ -201,7 +201,7 @@ presets['TargetHealth'] = {
     style = 'orb',
     direction = 'right',
 
-    colorStyle = 'class',
+    colorStyle = 'reaction',
     size = 64,
     aspectRatio = 8,
     anchor = {
