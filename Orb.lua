@@ -7,7 +7,8 @@
 --  D. Regions
 --  E. Pips
 --  F. Labels
---  G. Local values and helper functions
+--  G. Icons
+--  H. Local values and helper functions
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -15,6 +16,9 @@ local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 
 -- Orb methods
 local Orb = { }
+
+local Icons = { }
+local LabelTags = { }
 local OrbSettings = { }
 
 -- Local values and helper functions
@@ -64,6 +68,7 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
     RegisterUnitWatch(orb)
     orb.pips = { }
     orb.labels = { }
+    orb.icons = { }
     orb:EnableMouse(true)
     orb:SetMovable(true)
     orb:SetClampedToScreen(true)
@@ -96,6 +101,9 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
         },
 
         labels = { },
+
+        iconScale = 1,
+        icons = { },
     }
 
     -- Apply settings
@@ -157,6 +165,7 @@ function Orb:OnEvent(event, ...)
     elseif event == 'PLAYER_TARGET_CHANGED' then
         self:UpdateOrb()
     end
+    self:UpdateOrbIcons()
 end
 
 function Orb:OnDragStart(button)
@@ -189,6 +198,13 @@ function Orb:RegisterOrbEvents()
         self:RegisterEvent('PLAYER_TARGET_CHANGED')
     elseif unit ~= nil and string.match(unit, 'target$') then
         self:RegisterEvent('UNIT_TARGET')
+    end
+    for name, settings in pairs(self.settings.icons) do
+        if settings.enabled then 
+            for n, event in ipairs(Icons[name].events) do
+                self:RegisterEvent(event)
+            end
+        end
     end
 end
 
@@ -318,6 +334,25 @@ function Orb:UpdateOrb()
     for labelName, label in pairs(self.labels) do
         self:UpdateOrbLabel(label)
     end
+
+    -- Update icons
+    self:UpdateOrbIcons()
+end
+
+function Orb:UpdateOrbIcons()
+    for name, icon in pairs(self.icons) do
+        local Icon = Icons[name]
+        local settings = self.settings.icons[name]
+        if settings.enabled then
+            local texture = Icon.GetIconTexture(self)
+            if texture then
+                icon:Show()
+                ApplyTexture(icon, Icon.textures[texture])
+            else
+                icon:Hide()
+            end
+        end
+    end
 end
 
 function Orb:SuspendOrbUpdates()
@@ -352,6 +387,12 @@ function Orb:ApplyOrbSettings(settings)
             schema._apply(iterator.label, value)
         end
     end
+    local function VisitIconSetting(name, value, schema, iterator)
+        if iterator.settings[name] ~= value then
+            iterator.settings[name] = value
+            schema._apply(self, iterator.iconName, value)
+        end
+    end
     local function Enter(name, value, iterator)
         iterator = table.copy(iterator)
         iterator.settings[name] = iterator.settings[name] or { }
@@ -364,11 +405,19 @@ function Orb:ApplyOrbSettings(settings)
         iterator.label = self.labels[name]
         return value, iterator
     end
+    local function EnterIcon(name, value, iterator)
+        value, iterator = Enter(name, value, iterator)
+        iterator.iconName = name
+        return value, iterator
+    end
     local function EnterList(name, value, iterator)
         value, iterator = Enter(name, value, iterator)
         if name == 'labels' then
             iterator.VisitSetting = VisitLabelSetting
             iterator.EnterListElement = EnterLabel
+        elseif name == 'icons' then
+            iterator.VisitSetting = VisitIconSetting
+            iterator.EnterListElement = EnterIcon
         end
         return value, iterator
     end
@@ -989,6 +1038,41 @@ OrbSettings.labels = {
 
 }
 
+-- Setting 'iconScale' (number)
+-- Description: The size to use for icons
+OrbSettings.iconScale = {
+    _apply = function(orb, iconScale)
+        for name, icon in pairs(orb.icons) do
+            local Icon = Icons[name]
+            icon:SetWidth(iconScale * (Icon.width or 16))
+            icon:SetHeight(iconScale * (Icon.height or 16))
+        end
+    end,
+}
+
+-- Settings for elements list 'icons'
+-- Description: A number of preset indicator icons are available for display on an orb
+OrbSettings.icons = {
+    _type = 'list',
+
+    -- Setting 'enabled' (boolean)
+    -- Description: Whether the icon is enabled
+    enabled = {
+        _priority = 10,
+        _apply = function(orb, iconName, enabled)
+            orb:SetOrbIconEnabled(iconName, enabled)
+        end,
+    },
+
+    -- Setting 'anchor' (table)
+    -- Description: An anchor used to position the icon
+    anchor = {
+        _apply = function(orb, iconName, anchor)
+            orb:SetOrbIconAnchor(iconName)
+        end,
+    },
+}
+
 -- ============================================================================
 --  D. Regions
 -- ============================================================================
@@ -1309,8 +1393,6 @@ function Orb:UpdateOrbLabel(label)
     label:SetText(self:FormatTaggedText(label.settings.text))
 end
 
-local LabelTags = { }
-
 local function ParseTags(text, callback)
 end
 
@@ -1368,12 +1450,38 @@ function Orb:FormatTaggedText(text)
     return newText..string.sub(text, segmentStart)
 end
 
+function LabelTags.name(orb)
+    return UnitName(orb.unit)
+end
+
 function LabelTags.class(orb)
     return UnitClass(orb.unit)
 end
 
-function LabelTags.name(orb)
-    return UnitName(orb.unit)
+function LabelTags.level(orb)
+    local level = UnitLevel(orb.unit)
+    if level > 0 then
+        local classification = UnitClassification(orb.unit)
+        if classification == 'elite' or classification == 'rareelite' then
+            return tostring(level)..'+'
+        elseif classification == 'trivial' or classification == 'minus' then
+            return tostring(level)..'-'
+        else
+            return tostring(level)
+        end
+    else
+        return '??'
+    end
+end
+
+function LabelTags.hasResource(orb, tagContents)
+    if (orb.resource == 'health') or
+       (orb.resource == 'power' and UnitPowerMax(orb.unit) > 0) or
+       (orb.resource == 'power2' and UnitPower2Max(orb.unit) > 0) then
+        return orb:FormatTaggedText(tagContents)
+    else
+        return ''
+    end
 end
 
 function LabelTags.resourceName(orb)
@@ -1473,6 +1581,14 @@ function LabelTags.healthPercent(orb)
     end
 end
 
+function LabelTags.hasPower(orb, tagContents)
+    if UnitPowerMax(orb.unit) > 0 then
+        return orb:FormatTaggedText(tagContents)
+    else
+        return ''
+    end
+end
+
 function LabelTags.powerName(orb)
     return L['POWER_'..select(2, UnitPowerType(orb.unit))]
 end
@@ -1529,7 +1645,112 @@ function LabelTags.power2Percent(orb)
 end
 
 -- ============================================================================
---  G. Local values and helper functions
+--  G. Icons
+-- ============================================================================
+
+function Orb:SetOrbIconEnabled(iconName, enabled)
+    local icon = self.icons[iconName]
+    if enabled then
+        if icon == nil then
+            local Icon = Icons[iconName]
+            if Icon == nil then return end
+            local iconScale = self.settings.iconScale
+            icon = self:CreateTexture()
+            icon:SetDrawLayer('ARTWORK', 5)
+            icon:SetWidth(iconScale * (Icon.width or 16))
+            icon:SetHeight(iconScale * (Icon.height or 16))
+            self.icons[iconName] = icon
+        end
+        self:RegisterOrbEvents()
+    else
+        if icon ~= nil then
+            icon:Hide()
+        end
+    end
+end
+
+function Orb:SetOrbIconAnchor(iconName)
+    local icon = self.icons[iconName]
+    if icon == nil then return end
+    local anchor = self.settings.icons[iconName].anchor or { point = 'CENTER', }
+    icon:ClearAllPoints()
+    icon:SetPoint(anchor.point, self, anchor.relativePoint or anchor.point, anchor.x, anchor.y)
+end
+
+Icons.inCombat = {
+    events = { },
+    textures = {
+    },
+    GetIconTexture = function(orb)
+    end,
+}
+
+Icons.resting = {
+    events = { 'PLAYER_UPDATE_RESTING', },
+    textures = {
+        resting = { 1, 1, 1 },
+    },
+    GetIconTexture = function(orb)
+        if orb.unit == 'player' and IsResting() then
+            return 'resting'
+        end
+    end,
+}
+
+Icons.pvpFlag = {
+    events = { },
+    width = 16, height = 32,
+    textures = {
+        alliance = { 1, 1, 1 },
+        horde = { 1, 1, 1 },
+    },
+    GetIconTexture = function(orb)
+    end,
+}
+
+Icons.groupLeader = {
+    events = { },
+    textures = {
+    },
+    GetIconTexture = function(orb)
+    end,
+}
+
+Icons.groupRole = {
+    events = { },
+    textures = {
+    },
+    GetIconTexture = function(orb)
+    end,
+}
+
+Icons.masterLooter = {
+    events = { },
+    textures = {
+    },
+    GetIconTexture = function(orb)
+    end,
+}
+
+Icons.raidTarget = {
+    events = { 'RAID_TARGET_UPDATE', },
+    textures = {
+        [1] = { 1, 1, 0 },
+        [2] = { 1, 0.5, 0 },
+        [3] = { 1, 0, 1 },
+        [4] = { 0, 1, 0 },
+        [5] = { 1, 1, 1 },
+        [6] = { 0, 0, 1 },
+        [7] = { 1, 0, 0 },
+        [8] = { 0.5, 0.5, 0.5 },
+    },
+    GetIconTexture = function(orb)
+        return GetRaidTargetIndex(orb.unit)
+    end,
+}
+
+-- ============================================================================
+--  H. Local values and helper functions
 -- ============================================================================
 
 local defaultSettings = {
@@ -1596,6 +1817,13 @@ local defaultSettings = {
             showOnlyOnHover = false,
         },
     },
+
+    iconScale = 1,
+    icons = {
+        ['*'] = {
+            enabled = false,
+        }
+    }
 }
 
 function ApplyTexture(region, texture)

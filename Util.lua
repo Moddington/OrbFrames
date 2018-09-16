@@ -12,6 +12,12 @@ function table.copy(t)
 	return t2
 end
 
+function table.find(t, k, i)
+    for i=i or 1, #t do
+        if t[i] == k then return i end
+    end
+end
+
 local power2Types = {
     ['ROGUE'] = { 4, 'COMBO_POINTS' },
     ['DEATH_KNIGHT'] = { 5, 'RUNES' },

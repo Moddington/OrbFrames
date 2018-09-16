@@ -45,6 +45,123 @@ OrbFrames.defaults.profile.blizz = {
 --  A. Player
 -- ============================================================================
 
+presets['PlayerPortrait'] = {
+    enabled = true,
+    locked = true,
+
+    style = 'orb',
+    unit = 'player',
+    resource = 'empty',
+    direction = 'up',
+
+    colorStyle = 'resource',
+    size = 64,
+    anchor = {
+        point = 'TOPLEFT',
+        x = 15,
+        y = -15,
+    },
+
+    backdrop = {
+        texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+    },
+    backdropArt = {
+        texture = '',
+    },
+    fill = {
+        texture = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+    },
+    border = {
+        texture = '',
+    },
+    borderArt = {
+        texture = '',
+    },
+
+    labels = {
+        ['level'] = {
+            text = '{level}',
+            font = 'GameFontWhite',
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOMRIGHT',
+                x = 0,
+                y = 0,
+            },
+            justifyH = 'CENTER',
+            justifyV = 'MIDDLE',
+            -- TODO: border+backdrop
+        },
+    },
+
+    iconScale = 1,
+    icons = {
+        inCombat = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOMRIGHT',
+                x = 0,
+                y = 0,
+            },
+        },
+        resting = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOMLEFT',
+                x = 0,
+                y = 0,
+            },
+        },
+        pvpFlag = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'RIGHT',
+                x = 0,
+                y = 0,
+            },
+        },
+        groupLeader = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOMRIGHT',
+                x = 0,
+                y = 0,
+            },
+        },
+        groupRole = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOMRIGHT',
+                x = 0,
+                y = 0,
+            },
+        },
+        masterLooter = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOMRIGHT',
+                x = 0,
+                y = 0,
+            },
+        },
+        raidTarget = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOMRIGHT',
+                x = 0,
+                y = 0,
+            },
+        },
+    },
+}
+
 presets['PlayerHealth'] = {
     enabled = true,
     locked = true,
@@ -93,8 +210,8 @@ presets['PlayerHealth'] = {
 
     labels = {
         ['resource'] = {
-            text = '{resourceName}: {resource}/{resourceMax} ({resourcePercent}%)'
-                .. '{hasResource2:\n{resource2Name}: {resource2}/{resource2Max} ({resource2Percent}%)}',
+            text = '{hasResource:{resourceName}: {resource}/{resourceMax} ({resourcePercent}%)'
+                .. '{hasResource2:\n{resource2Name}: {resource2}/{resource2Max} ({resource2Percent}%)}}',
             font = 'GameFontWhite',
             anchor = {
                 point = 'BOTTOMLEFT',
@@ -102,7 +219,6 @@ presets['PlayerHealth'] = {
                 x = 5,
                 y = 5,
             },
-            width = 0,
             justifyH = 'LEFT',
             justifyV = 'TOP',
         },
@@ -252,7 +368,7 @@ presets['TargetHealth'] = {
             justifyV = 'MIDDLE',
         },
         ['power'] = {
-            text = '{powerName}: {power}/{powerMax} ({powerPercent}%)',
+            text = '{hasPower:{powerName}: {power}/{powerMax} ({powerPercent}%)}',
             font = 'GameFontWhite',
             anchor = {
                 point = 'RIGHT',
