@@ -49,7 +49,7 @@ presets['PlayerPortrait'] = {
     enabled = true,
     locked = true,
 
-    style = 'orb',
+    style = 'simple',
     unit = 'player',
     resource = 'empty',
     direction = 'up',
@@ -166,7 +166,7 @@ presets['PlayerHealth'] = {
     enabled = true,
     locked = true,
 
-    style = 'orb',
+    style = 'simple',
     unit = 'player',
     resource = 'health',
     direction = 'up',
@@ -314,7 +314,7 @@ presets['TargetHealth'] = {
 
     unit = 'target',
     resource = 'health',
-    style = 'orb',
+    style = 'simple',
     direction = 'right',
 
     colorStyle = 'reaction',

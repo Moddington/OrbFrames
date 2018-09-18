@@ -16,4 +16,11 @@ OrbFrames.lua
 Util.lua
 Presets.lua
 Schema.lua
+
+Components\Icon.lua
+Components\Label.lua
+Components\Pips.lua
+Components\ResourceBar.lua
+Components\Sconce.lua
+
 Orb.lua

@@ -21,7 +21,8 @@ local AceDB = LibStub('AceDB-3.0')
 -- ============================================================================
 
 _G.OrbFrames = AceAddon:NewAddon(OrbFrames, 'OrbFrames',
-    'AceConsole-3.0')
+	'AceConsole-3.0',
+	'LibComponent-1.0')
 
 -- Version info
 OrbFrames.version = '0.0'
@@ -62,6 +63,9 @@ OrbFrames.defaults = {
     },
 }
 
+-- Components table
+OrbFrames.Components = { }
+
 -- ============================================================================
 --  B. AceAddon callbacks
 -- ============================================================================
@@ -70,7 +74,7 @@ function OrbFrames:OnInitialize()
 	self.orbs = { }
 	self.blizzHider = CreateFrame('Frame', 'OrbFrames_BlizzHider')
 	self.blizzHider:Hide()
-    self:InitOptions()
+	self:InitOptions()
 end
 
 function OrbFrames:OnEnable()
