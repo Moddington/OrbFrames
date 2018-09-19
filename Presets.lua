@@ -50,11 +50,11 @@ presets['PlayerPortrait'] = {
     locked = true,
 
     style = 'simple',
+    direction = 'up',
     unit = 'player',
     resource = 'empty',
-    direction = 'up',
-
     colorStyle = 'resource',
+
     size = 64,
     anchor = {
         point = 'TOPLEFT',
@@ -167,11 +167,11 @@ presets['PlayerHealth'] = {
     locked = true,
 
     style = 'simple',
+    direction = 'up',
     unit = 'player',
     resource = 'health',
-    direction = 'up',
-
     colorStyle = 'resource',
+
     size = 256,
     anchor = {
         point = 'BOTTOMLEFT',
@@ -279,7 +279,7 @@ presets['PetHealth'] = {
     unit = 'pet',
 
     size = 128,
-    parent = 'PlayerHealth',
+    parent = 'orb:PlayerHealth',
     anchor = {
         point = 'BOTTOMRIGHT',
         x = 32,
@@ -301,7 +301,7 @@ presets['PetPower'] = {
 
     resource = 'power',
 
-    parent = 'PlayerPower',
+    parent = 'orb:PlayerPower',
 }
 
 -- ============================================================================
@@ -313,11 +313,11 @@ presets['TargetHealth'] = {
     locked = true,
 
     unit = 'target',
+    direction = 'right',
     resource = 'health',
     style = 'simple',
-    direction = 'right',
-
     colorStyle = 'reaction',
+
     size = 64,
     aspectRatio = 8,
     anchor = {
