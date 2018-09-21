@@ -247,38 +247,6 @@ OrbFrames.OrbSchema = OrbSchema
 
 local ReadOrbSettings
 
-local defaultSettings = {
-    enabled = true,
-    locked = true,
-
-    style = 'simple',
-    unit = 'player',
-    resource = 'health',
-    colorStyle = 'resource',
-    showAbsorb = true,
-    showHeals = true,
-
-    size = 256,
-    aspectRatio = 1,
-    parent = nil,
-    anchor = {
-        point = 'CENTER',
-    },
-
-    backdrop = {
-        texture = '',
-    },
-    backdropArt = {
-        texture = '',
-    },
-    border = {
-        texture = '',
-    },
-    borderArt = {
-        texture = '',
-    },
-}
-
 function Orb:ApplyOrbSettings(settings)
     -- Read orb settings to acquire inherited and default values
     settings = ReadOrbSettings(settings)
@@ -296,7 +264,7 @@ function Orb:ApplyOrbSettings(settings)
         iterator.settings = iterator.settings[name]
         return value, iterator
     end
-    OrbFrames.TraverseSettings(settings, OrbSchema, {
+    OrbFrames.TraverseSchema(settings, OrbSchema, {
         VisitSetting = VisitSetting,
         EnterGroup = Enter,
         EnterList = Enter,
@@ -332,7 +300,7 @@ function ReadOrbSettings(settings)
     end
 
     -- Copy settings
-    OrbFrames.TraverseSettings(settings, OrbSchema, {
+    OrbFrames.TraverseSchema(settings, OrbSchema, {
         VisitSetting = function(name, value, schema, iterator)
             iterator.readSettings[name] = value
         end,
@@ -353,7 +321,7 @@ function ReadOrbSettings(settings)
         if inheritSettings == nil then error('Inherited orb "'..inheritName..'" does not exist') end
         inheritSettings = ReadOrbSettings(inheritSettings)
 
-        OrbFrames.TraverseSettings(inheritSettings, OrbSchema, {
+        OrbFrames.TraverseSchema(inheritSettings, OrbSchema, {
             VisitSetting = function(name, value, schema, iterator)
                 if iterator.readSettings[name] == nil then
                     if inheritStyle == 'mirror' then
@@ -372,28 +340,7 @@ function ReadOrbSettings(settings)
     end
 
     -- Apply missing defaults
-    OrbFrames.TraverseSettings(defaultSettings, OrbSchema, {
-        VisitSetting = function(name, value, schema, iterator)
-            if iterator.readSettings[name] == nil then
-                iterator.readSettings[name] = value
-            end
-        end,
-
-        EnterGroup = Enter,
-        EnterList = function(name, value, iterator)
-            value, iterator = Enter(name, value, iterator)
-            if value['*'] then
-                local star = value['*']
-                value = { }
-                for name, _ in pairs(readSettings[name]) do
-                    value[name] = star
-                end
-            end
-            return value, iterator
-        end,
-        EnterListElement = Enter,
-        readSettings = readSettings,
-    })
+    OrbFrames.ApplySchemaDefaults(readSettings, OrbSchema)
 
     return readSettings
 end
@@ -406,7 +353,7 @@ end
 -- Description: Whether the orb is enabled or disabled
 OrbSchema.enabled = {
     _priority = -100,
-
+    _default = true,
     _apply = Orb.SetOrbEnabled,
 }
 
@@ -414,6 +361,7 @@ OrbSchema.enabled = {
 -- Description: Whether the orb is locked in place, or can be repositioned with
 --              the mouse
 OrbSchema.locked = {
+    _default = true,
     _apply = Orb.SetOrbLocked,
 }
 
@@ -426,7 +374,7 @@ OrbSchema.locked = {
 -- Values: 'simple' - A plain ol' orb
 OrbSchema.style = {
     _priority = 100,
-
+    _default = 'simple',
     _apply = Orb.SetOrbStyle,
 }
 
@@ -435,7 +383,7 @@ OrbSchema.style = {
 -- Values: 'up', 'down', 'left', 'right'
 OrbSchema.direction = {
     _apply = Orb.SetOrbDirection,
-
+    _default = 'up',
     _mirror = function(direction)
         return OrbFrames.mirroredDirections[direction]
     end,
@@ -445,6 +393,7 @@ OrbSchema.direction = {
 -- Description: Which unit the orb is tracking
 -- Values: Any valid WoW unit name
 OrbSchema.unit = {
+    _default = 'player',
     _apply = Orb.SetOrbUnit,
 }
 
@@ -456,6 +405,7 @@ OrbSchema.unit = {
 --         'empty'  - Always show an empty orb
 --         'full'   - Always show a full orb
 OrbSchema.resource = {
+    _default = 'health',
     _apply = Orb.SetOrbResource,
 }
 
@@ -465,6 +415,7 @@ OrbSchema.resource = {
 --         'resource' - The resource's color
 --         'reaction' - The unit's reaction color
 OrbSchema.colorStyle = {
+    _default = 'resource',
     _apply = Orb.SetOrbColorStyle,
 }
 
@@ -472,6 +423,7 @@ OrbSchema.colorStyle = {
 -- Description: When the orb resource is 'health', display absorb effects on
 --              the unit as an overlay on the orb
 OrbSchema.showAbsorb = {
+    _default = true,
     _apply = Orb.SetOrbShowAbsorb,
 }
 
@@ -479,6 +431,7 @@ OrbSchema.showAbsorb = {
 -- Description: When the orb resource is 'health', display incoming heals as
 --              a semi-transparent liquid on top of the health liquid
 OrbSchema.showHeals = {
+    _default = true,
     _apply = Orb.SetOrbShowHeals,
 }
 
@@ -489,6 +442,7 @@ OrbSchema.showHeals = {
 -- Setting 'size' (number)
 -- Description: The vertical size of the orb
 OrbSchema.size = {
+    _default = 256,
     _apply = function(orb, size)
         local aspectRatio = orb.settings.aspectRatio
         if aspectRatio ~= nil then
@@ -500,6 +454,7 @@ OrbSchema.size = {
 -- Setting 'aspectRatio' (number)
 -- Description: The ratio between the orb's height and its width
 OrbSchema.aspectRatio = {
+    _default = 1,
     _apply = function(orb, aspectRatio)
         local size = orb.settings.size
         if size ~= nil then
@@ -515,7 +470,7 @@ OrbSchema.aspectRatio = {
 --         nil - Parent to UIParent by default
 OrbSchema.parent = {
     _priority = 1,
-
+    _default = nil,
     _apply = function(orb, parent)
         local parentOrb = string.match(parent, '^orb:(.*)')
         if parentOrb then
@@ -545,10 +500,14 @@ OrbSchema.parent = {
 -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
 --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
 OrbSchema.anchor = {
+    _default = function()
+        return {
+            point = 'CENTER',
+        }
+    end,
     _apply = function(orb, anchor)
         orb:SetOrbPosition(anchor)
     end,
-
     _mirror = function(anchor)
         return {
             point = OrbFrames.mirroredAnchors[anchor.point],
@@ -573,6 +532,7 @@ OrbSchema.backdrop = {
     -- Description: Name of the texture to use as a backdrop
     -- Values: Any valid path to a texture
     texture = {
+        _default = '',
         _apply = function(orb, texture)
             orb:SetOrbSconceTexture('Backdrop', texture)
         end,
@@ -589,6 +549,7 @@ OrbSchema.backdropArt = {
     -- Description: Name of the texture to use as art behind and around the backdrop
     -- Values: Any valid path to a texture
     texture = {
+        _default = '',
         _apply = function(orb, texture)
             orb:SetOrbSconceTexture('BackdropArt', texture)
         end,
@@ -605,6 +566,7 @@ OrbSchema.fill = {
     -- Description: Name of the texture to use for the fill
     -- Values: Any valid path to a texture
     texture = {
+        _default = '',
         _apply = Orb.SetOrbFillTexture,
     },
 
@@ -613,6 +575,7 @@ OrbSchema.fill = {
     -- Values: A lookup table where keys are resource names, and values are
     --         any valid path to a texture
     resourceTextures = {
+        _default = function() return { } end,
         _apply = Orb.SetOrbFillResourceTextures,
     },
 
@@ -627,6 +590,7 @@ OrbSchema.border = {
     -- Description: Name of the texture to use as a border
     -- Values: Any valid path to a texture
     texture = {
+        _default = '',
         _apply = function(orb, texture)
             orb:SetOrbSconceTexture('Border', texture)
         end,
@@ -643,6 +607,7 @@ OrbSchema.borderArt = {
     -- Description: Name of the texture to use as border artwork
     -- Values: Any valid path to a texture
     texture = {
+        _default = '',
         _apply = function(orb, texture)
             orb:SetOrbSconceTexture('BorderArt', texture)
         end,

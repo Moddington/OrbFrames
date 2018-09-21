@@ -1,7 +1,7 @@
 -- ============================================================================
 --  Schema.lua
 -- ----------------------------------------------------------------------------
---  A. TraverseSettings
+--  A. TraverseSchema
 --  B. Utils
 -- ============================================================================
 
@@ -9,10 +9,10 @@ local _, OrbFrames = ...
 local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 
 -- ============================================================================
---  A. TraverseSettings
+--  A. TraverseSchema
 -- ============================================================================
 
-function OrbFrames.TraverseSettings(settings, schema, iterator)
+function OrbFrames.TraverseSchema(settings, schema, iterator)
     -- iterator = {
     --     VisitSetting = function(name, value, schema, iterator) return end,
     --     EnterGroup = function(name, value, iterator) return value, iterator end,
@@ -42,15 +42,45 @@ function OrbFrames.TraverseSettings(settings, schema, iterator)
         if value ~= nil and not string.match(name, '^_') then
             if schema._type == 'group' then
                 local value, iterator = iterator.EnterGroup(name, value, iterator)
-                OrbFrames.TraverseSettings(value, schema, iterator)
+                OrbFrames.TraverseSchema(value, schema, iterator)
             elseif schema._type == 'list' then
                 local value, iterator = iterator.EnterList(name, value, iterator)
                 for name, value in pairs(value) do
                     local value, iterator = iterator.EnterListElement(name, value, iterator)
-                    OrbFrames.TraverseSettings(value, schema, iterator)
+                    OrbFrames.TraverseSchema(value, schema, iterator)
                 end
             else
                 iterator.VisitSetting(name, value, schema, iterator)
+            end
+        end
+    end
+end
+
+function OrbFrames.ApplySchemaDefaults(settings, schema)
+    for name, schema in pairs(schema) do
+        if not string.match(name, '^_') then
+            local value = settings[name]
+            if schema._type == 'group' then
+                if value == nil then
+                    value = { }
+                    settings[name] = value
+                end
+                OrbFrames.ApplySchemaDefaults(value, schema)
+            elseif schema._type == 'list' then
+                if value then
+                    for name, value in pairs(value) do
+                        OrbFrames.ApplySchemaDefaults(value, schema)
+                    end
+                end
+            else
+                if value == nil then
+                    local default = schema._default
+                    if type(default) == 'function' then
+                        settings[name] = default()
+                    else
+                        settings[name] = default
+                    end
+                end
             end
         end
     end

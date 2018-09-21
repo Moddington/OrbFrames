@@ -45,7 +45,8 @@ function ResourceBar:OnUnitResourceEvent(event, unitID, ...)
 end
 
 function ResourceBar:OnParentUnitEvent(event, unitID, ...)
-    if self.parentUnit == unitID then
+    if self.parentUnit == unitID or
+        (self.parentUnit == 'player' and string.match(event, '^PLAYER')) then
         self:UpdateProportion()
         self:UpdateColor()
         self:UpdateTexture()
