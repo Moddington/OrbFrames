@@ -45,3 +45,13 @@ function UnitPower2Max(unitID)
         return 0
     end
 end
+
+function OrbFrames.ApplyTexture(region, texture)
+    if type(texture) == 'string' then
+        region:SetTexture(texture)
+    elseif type(texture) == 'table' then
+        region:SetColorTexture(unpack(texture))
+    else
+        region:SetTexture()
+    end
+end

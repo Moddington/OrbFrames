@@ -3,8 +3,7 @@
 -- ----------------------------------------------------------------------------
 --  A. Orb creation and management
 --  B. Callbacks and methods
---  C. Updates
---  D. Settings
+--  C. Settings
 --   - Meta
 --   - Style
 --   - Size and positioning
@@ -111,10 +110,6 @@ end
 --  B. Callbacks and methods
 -- ============================================================================
 
-function Orb:OnShow()
-    self:UpdateOrb()
-end
-
 function Orb:OnDragStart(button)
     if button == 'LeftButton' then
         self:StartMoving()
@@ -126,13 +121,13 @@ function Orb:OnDragStop()
 end
 
 function Orb:SetOrbEnabled(enabled)
-    print(set:GetName()..':SetOrbEnabled', enabled)
+    self.enabled = enabled
     if enabled then
-        self:ResumeOrbUpdates()
         self:Show()
+        self:SetStyle(self.style)
     else
+        self:DisableAllComponents()
         self:Hide()
-        self:SuspendOrbUpdates()
     end
 end
 
@@ -146,14 +141,21 @@ end
 
 function Orb:SetOrbStyle(style)
     self.style = style
+    self:DisableAllComponents()
     if style == 'simple' then
-        if not self:HasComponent('simpleSconce') then
-            self:CreateComponent(OrbFrames.Components.SimpleSconce, 'simpleSconce')
-        end
-        if not self:HasComponent('resourceBar') then
-            self:CreateComponent(OrbFrames.Components.ResourceBar, 'resourceBar')
-        end
+        self:CreateOrEnableComponent(OrbFrames.Components.SimpleSconce, 'SimpleSconce')
+        self:CreateOrEnableComponent(OrbFrames.Components.ResourceBar, 'FillBar', 'ARTWORK', -2)
         -- TODO: pips, icons, labels
+    end
+    if self.enabled == false then
+        self:DisableAllComponents()
+    end
+end
+
+function Orb:SetOrbDirection(direction)
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('FillBar'):SetDirection(direction)
     end
 end
 
@@ -161,56 +163,83 @@ function Orb:SetOrbUnit(unit)
     self.unit = unit
     self:SetAttribute('unit', unit)
     SecureUnitButton_OnLoad(self, unit) -- TODO: menuFunc
-    self:UpdateOrb()
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('FillBar'):SetUnit(unit)
+    end
+end
+
+function Orb:SetOrbResource(resource)
+    self.resource = resource
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('FillBar'):SetResource(resource)
+    end
+end
+
+function Orb:SetOrbColorStyle(colorStyle)
+    self.colorStyle = colorStyle
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('FillBar'):SetColorStyle(colorStyle)
+    end
+end
+
+function Orb:SetOrbShowAbsorb(showAbsorb)
+    local style = self.style
+    if style == 'simple' then
+        -- TODO: self:GetComponent('overlayBar'):SetColorStyle(colorStyle)
+    end
+end
+
+function Orb:SetOrbShowHeals(showHeals)
+    local style = self.style
+    if style == 'simple' then
+        -- TODO: self:GetComponent('extraFillBar'):SetColorStyle(colorStyle)
+    end
 end
 
 function Orb:SetOrbSize(size, aspectRatio)
     self:SetWidth(size * aspectRatio)
     self:SetHeight(size)
-    self:UpdateOrbSize()
+    self:SendMessage('ENTITY_UPDATE_SIZE')
 end
 
 function Orb:SetOrbPosition(anchor)
-    print(self:GetName()..':SetOrbPosition')
     local relativeTo = anchor.relativeTo
     if relativeTo == nil then relativeTo = self:GetParent() or UIParent end
     local relativePoint = anchor.relativePoint
     if relativePoint == nil then relativePoint = anchor.point end
     self:ClearAllPoints()
-    print(anchor.point, relativeTo:GetName(), relativePoint, anchor.x, anchor.y)
     self:SetPoint(anchor.point, relativeTo, relativePoint, anchor.x, anchor.y)
 end
 
 function Orb:SetOrbSconceTexture(regionName, texture)
-    if self.style == 'simple' then
-        self:GetComponent('simpleSconce'):SetTexture(regionName, texture)
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('SimpleSconce'):SetTexture(regionName, texture)
+    end
+end
+
+function Orb:SetOrbFillTexture(texture)
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('FillBar'):SetTexture(texture)
+    end
+end
+
+function Orb:SetOrbFillResourceTextures(resourceTextures)
+    local style = self.style
+    if style == 'simple' then
+        local fillBar = self:GetComponent('FillBar')
+        for resource, texture in pairs(resourceTextures) do
+            fillBar:SetResourceTexture(resource, texture)
+        end
     end
 end
 
 -- ============================================================================
---  C. Updates
--- ============================================================================
-
-function Orb:SuspendOrbUpdates()
-    self.UpdateOrb = function() end
-    self.UpdateOrbSize = function() end
-end
-
-function Orb:ResumeOrbUpdates()
-    self.UpdateOrb = Orb.UpdateOrb
-    self.UpdateOrbSize = Orb.UpdateOrbSize
-end
-
-function Orb:UpdateOrb()
-    self:SendMessage('ENTITY_UPDATE_ALL')
-end
-
-function Orb:UpdateOrbSize()
-    self:SendMessage('ENTITY_UPDATE_SIZE')
-end
-
--- ============================================================================
---  D. Settings
+--  C. Settings
 -- ============================================================================
 
 local OrbSchema = { }
@@ -224,6 +253,10 @@ local defaultSettings = {
 
     style = 'simple',
     unit = 'player',
+    resource = 'health',
+    colorStyle = 'resource',
+    showAbsorb = true,
+    showHeals = true,
 
     size = 256,
     aspectRatio = 1,
@@ -250,9 +283,6 @@ function Orb:ApplyOrbSettings(settings)
     -- Read orb settings to acquire inherited and default values
     settings = ReadOrbSettings(settings)
 
-    -- Suspend orb updates
-    self:SuspendOrbUpdates()
-
     -- Apply settings
     local function VisitSetting(name, value, schema, iterator)
         if iterator.settings[name] ~= value then
@@ -273,12 +303,6 @@ function Orb:ApplyOrbSettings(settings)
         EnterListElement = Enter,
         settings = self.settings,
     })
-
-    -- Resume orb updates
-    self:ResumeOrbUpdates()
-
-    -- Update and return
-    self:UpdateOrb()
 end
 
 function Orb:ApplyOrbSetting(path, value)
@@ -406,11 +430,56 @@ OrbSchema.style = {
     _apply = Orb.SetOrbStyle,
 }
 
+-- Setting 'direction' (string)
+-- Description: The direction the orb fills in
+-- Values: 'up', 'down', 'left', 'right'
+OrbSchema.direction = {
+    _apply = Orb.SetOrbDirection,
+
+    _mirror = function(direction)
+        return OrbFrames.mirroredDirections[direction]
+    end,
+}
+
 -- Setting 'unit' (string)
 -- Description: Which unit the orb is tracking
 -- Values: Any valid WoW unit name
 OrbSchema.unit = {
     _apply = Orb.SetOrbUnit,
+}
+
+-- Setting 'resource' (string)
+-- Description: Which resource the orb is displaying
+-- Values: 'health' - The unit's health
+--         'power'  - The unit's primary power type
+--         'power2' - The unit's secondary power type
+--         'empty'  - Always show an empty orb
+--         'full'   - Always show a full orb
+OrbSchema.resource = {
+    _apply = Orb.SetOrbResource,
+}
+
+-- Setting 'colorStyle' (string)
+-- Description: The method used to choose the color for the orb liquid
+-- Values: 'class'    - The unit's class color
+--         'resource' - The resource's color
+--         'reaction' - The unit's reaction color
+OrbSchema.colorStyle = {
+    _apply = Orb.SetOrbColorStyle,
+}
+
+-- Setting 'showAbsorb' (boolean)
+-- Description: When the orb resource is 'health', display absorb effects on
+--              the unit as an overlay on the orb
+OrbSchema.showAbsorb = {
+    _apply = Orb.SetOrbShowAbsorb,
+}
+
+-- Setting 'showHeals' (boolean)
+-- Description: When the orb resource is 'health', display incoming heals as
+--              a semi-transparent liquid on top of the health liquid
+OrbSchema.showHeals = {
+    _apply = Orb.SetOrbShowHeals,
 }
 
 -- ----------------------------------------------------------------------------
@@ -523,6 +592,28 @@ OrbSchema.backdropArt = {
         _apply = function(orb, texture)
             orb:SetOrbSconceTexture('BackdropArt', texture)
         end,
+    },
+
+}
+
+-- Setting group 'fill'
+-- Description: Contains settings related to the orb's fill
+OrbSchema.fill = {
+    _type = 'group',
+
+    -- Setting 'texture' (string)
+    -- Description: Name of the texture to use for the fill
+    -- Values: Any valid path to a texture
+    texture = {
+        _apply = Orb.SetOrbFillTexture,
+    },
+
+    -- Setting 'resourceTextures' (table)
+    -- Description: A lookup table of textures to use for specific resources
+    -- Values: A lookup table where keys are resource names, and values are
+    --         any valid path to a texture
+    resourceTextures = {
+        _apply = Orb.SetOrbFillResourceTextures,
     },
 
 }
