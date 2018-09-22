@@ -55,3 +55,35 @@ function OrbFrames.ApplyTexture(region, texture)
         region:SetTexture()
     end
 end
+
+OrbFrames.mirroredAlignments = {
+    ['LEFT'] = 'RIGHT',
+    ['CENTER'] = 'CENTER',
+    ['RIGHT'] = 'LEFT',
+}
+
+OrbFrames.mirroredAnchors = {
+    ['TOPLEFT'] = 'TOPRIGHT',
+    ['TOP'] = 'TOP',
+    ['TOPRIGHT'] = 'TOPLEFT',
+    ['RIGHT'] = 'LEFT',
+    ['BOTTOMRIGHT'] = 'BOTTOMLEFT',
+    ['BOTTOM'] = 'BOTTOM',
+    ['BOTTOMLEFT'] = 'BOTTOMRIGHT',
+    ['LEFT'] = 'RIGHT',
+    ['CENTER'] = 'CENTER',
+}
+
+OrbFrames.mirroredDirections = {
+    ['up'] = 'up',
+    ['down'] = 'down',
+    ['left'] = 'right',
+    ['right'] = 'left',
+}
+
+OrbFrames.mirroredEdges = {
+    ['top'] = 'top',
+    ['bottom'] = 'bottom',
+    ['left'] = 'right',
+    ['right'] = 'left',
+}

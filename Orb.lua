@@ -8,6 +8,7 @@
 --   - Style
 --   - Size and positioning
 --   - Textures
+--   - Pips
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -15,6 +16,7 @@ local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 
 -- Orb methods
 local Orb = { }
+OrbFrames.Orb = Orb
 
 -- ============================================================================
 --  A. Orb creation and management
@@ -107,7 +109,7 @@ function OrbFrames:UnlockAllOrbs()
 end
 
 -- ============================================================================
---  B. Callbacks and methods
+--  B. Callbacks
 -- ============================================================================
 
 function Orb:OnDragStart(button)
@@ -120,11 +122,119 @@ function Orb:OnDragStop()
     self:StopMovingOrSizing()
 end
 
+-- ============================================================================
+--  C. Settings
+-- ============================================================================
+
+local ReadOrbSettings
+
+function Orb:ApplyOrbSettings(settings)
+    -- Read orb settings to acquire inherited and default values
+    settings = ReadOrbSettings(settings)
+
+    -- Apply settings
+    local function VisitSetting(name, value, schema, iterator)
+        if iterator.settings[name] ~= value then
+            iterator.settings[name] = value
+            schema._apply(self, value)
+        end
+    end
+    local function Enter(name, value, iterator)
+        iterator = table.copy(iterator)
+        iterator.settings[name] = iterator.settings[name] or { }
+        iterator.settings = iterator.settings[name]
+        return iterator
+    end
+    OrbFrames.TraverseSchema(settings, OrbFrames.OrbSchema, {
+        VisitSetting = VisitSetting,
+        EnterGroup = Enter,
+        EnterList = Enter,
+        EnterListElement = Enter,
+        settings = self.settings,
+    })
+end
+
+function Orb:ApplyOrbSetting(path, value)
+    local schema = OrbFrames.OrbSchema
+    local settings = self.settings
+    local name = string.gsub(path, '(.-)\.', function(tableName)
+        schema = schema[tableName]
+        settings[tableName] = settings[tableName] or { }
+        settings = settings[tableName]
+        return ''
+    end)
+    if value ~= settings[name] then
+        settings[name] = value
+        schema[name]._apply(self, value)
+    end
+end
+
+function ReadOrbSettings(settings)
+    local readSettings = { }
+
+    -- Iterator functions
+    local function Enter(name, value, iterator)
+        iterator = table.copy(iterator)
+        iterator.readSettings[name] = iterator.readSettings[name] or { }
+        iterator.readSettings = iterator.readSettings[name]
+        return iterator
+    end
+
+    -- Copy settings
+    OrbFrames.TraverseSchema(settings, OrbFrames.OrbSchema, {
+        VisitSetting = function(name, value, schema, iterator)
+            iterator.readSettings[name] = value
+        end,
+        EnterGroup = Enter,
+        EnterList = Enter,
+        EnterListElement = Enter,
+        readSettings = readSettings,
+    })
+
+    -- Prevent these settings from being inherited
+    if readSettings.enabled == nil then readSettings.enabled = true end
+
+    -- Inherit settings
+    local inheritName = settings.inherit
+    local inheritStyle = settings.inheritStyle or 'copy'
+    if inheritName ~= nil then
+        local inheritSettings = OrbFrames.db.profile.orbs[inheritName]
+        if inheritSettings == nil then error('Inherited orb "'..inheritName..'" does not exist') end
+        inheritSettings = ReadOrbSettings(inheritSettings)
+
+        OrbFrames.TraverseSchema(inheritSettings, OrbFrames.OrbSchema, {
+            VisitSetting = function(name, value, schema, iterator)
+                if iterator.readSettings[name] == nil then
+                    if inheritStyle == 'mirror' then
+                        if schema._mirror then
+                            value = schema._mirror(value)
+                        end
+                    end
+                    iterator.readSettings[name] = value
+                end
+            end,
+            EnterGroup = Enter,
+            EnterList = Enter,
+            EnterListElement = Enter,
+            readSettings = readSettings,
+        })
+    end
+
+    -- Apply missing defaults
+    OrbFrames.ApplySchemaDefaults(readSettings, OrbFrames.OrbSchema)
+
+    return readSettings
+end
+
+-- ----------------------------------------------------------------------------
+--  Meta
+-- ----------------------------------------------------------------------------
+
 function Orb:SetOrbEnabled(enabled)
     self.enabled = enabled
     if enabled then
         self:Show()
-        self:SetStyle(self.style)
+        self:SetOrbStyle(self.style)
     else
         self:DisableAllComponents()
         self:Hide()
@@ -139,13 +249,18 @@ function Orb:SetOrbLocked(locked)
     end
 end
 
+-- ----------------------------------------------------------------------------
+--  Style
+-- ----------------------------------------------------------------------------
+
 function Orb:SetOrbStyle(style)
     self.style = style
     self:DisableAllComponents()
     if style == 'simple' then
         self:CreateOrEnableComponent(OrbFrames.Components.SimpleSconce, 'SimpleSconce')
         self:CreateOrEnableComponent(OrbFrames.Components.ResourceBar, 'FillBar', 'ARTWORK', -2)
-        -- TODO: pips, icons, labels
+        self:CreateOrEnableComponent(OrbFrames.Components.Pips, 'Pips', 'ARTWORK', 3)
+        -- TODO: icons, labels
     end
     if self.enabled == false then
         self:DisableAllComponents()
@@ -166,6 +281,7 @@ function Orb:SetOrbUnit(unit)
     local style = self.style
     if style == 'simple' then
         self:GetComponent('FillBar'):SetUnit(unit)
+        self:GetComponent('Pips'):SetUnit(unit)
     end
 end
 
@@ -174,6 +290,12 @@ function Orb:SetOrbResource(resource)
     local style = self.style
     if style == 'simple' then
         self:GetComponent('FillBar'):SetResource(resource)
+        local pips = self:GetComponent('Pips')
+        if resource == 'power' then
+            pips:SetResource('power2')
+        else
+            pips:SetResource()
+        end
     end
 end
 
@@ -199,6 +321,10 @@ function Orb:SetOrbShowHeals(showHeals)
     end
 end
 
+-- ----------------------------------------------------------------------------
+--  Size and positioning
+-- ----------------------------------------------------------------------------
+
 function Orb:SetOrbSize(size, aspectRatio)
     self:SetWidth(size * aspectRatio)
     self:SetHeight(size)
@@ -213,6 +339,10 @@ function Orb:SetOrbPosition(anchor)
     self:ClearAllPoints()
     self:SetPoint(anchor.point, relativeTo, relativePoint, anchor.x, anchor.y)
 end
+
+-- ----------------------------------------------------------------------------
+--  Textures
+-- ----------------------------------------------------------------------------
 
 function Orb:SetOrbSconceTexture(regionName, texture)
     local style = self.style
@@ -238,379 +368,50 @@ function Orb:SetOrbFillResourceTextures(resourceTextures)
     end
 end
 
--- ============================================================================
---  C. Settings
--- ============================================================================
+-- ----------------------------------------------------------------------------
+--  Pips
+-- ----------------------------------------------------------------------------
 
-local OrbSchema = { }
-OrbFrames.OrbSchema = OrbSchema
-
-local ReadOrbSettings
-
-function Orb:ApplyOrbSettings(settings)
-    -- Read orb settings to acquire inherited and default values
-    settings = ReadOrbSettings(settings)
-
-    -- Apply settings
-    local function VisitSetting(name, value, schema, iterator)
-        if iterator.settings[name] ~= value then
-            iterator.settings[name] = value
-            schema._apply(self, value)
-        end
-    end
-    local function Enter(name, value, iterator)
-        iterator = table.copy(iterator)
-        iterator.settings[name] = iterator.settings[name] or { }
-        iterator.settings = iterator.settings[name]
-        return value, iterator
-    end
-    OrbFrames.TraverseSchema(settings, OrbSchema, {
-        VisitSetting = VisitSetting,
-        EnterGroup = Enter,
-        EnterList = Enter,
-        EnterListElement = Enter,
-        settings = self.settings,
-    })
-end
-
-function Orb:ApplyOrbSetting(path, value)
-    local Settings = OrbSchema
-    local settings = self.settings
-    local name = string.gsub(path, '(.-)\.', function(tableName)
-        Settings = Settings[tableName]
-        settings[tableName] = settings[tableName] or { }
-        settings = settings[tableName]
-        return ''
-    end)
-    if value ~= settings[name] then
-        settings[name] = value
-        Settings[name]._apply(self, value)
+function Orb:SetOrbPipShape(shape, ...)
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('Pips'):SetShape(shape, ...)
     end
 end
 
-function ReadOrbSettings(settings)
-    local readSettings = { }
-
-    -- Iterator functions
-    local function Enter(name, value, iterator)
-        iterator = table.copy(iterator)
-        iterator.readSettings[name] = iterator.readSettings[name] or { }
-        iterator.readSettings = iterator.readSettings[name]
-        return value, iterator
+function Orb:SetOrbPipSize(size)
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('Pips'):SetSize(size)
     end
-
-    -- Copy settings
-    OrbFrames.TraverseSchema(settings, OrbSchema, {
-        VisitSetting = function(name, value, schema, iterator)
-            iterator.readSettings[name] = value
-        end,
-        EnterGroup = Enter,
-        EnterList = Enter,
-        EnterListElement = Enter,
-        readSettings = readSettings,
-    })
-
-    -- Prevent these settings from being inherited
-    if readSettings.enabled == nil then readSettings.enabled = true end
-
-    -- Inherit settings
-    local inheritName = settings.inherit
-    local inheritStyle = settings.inheritStyle or 'copy'
-    if inheritName ~= nil then
-        local inheritSettings = OrbFrames.db.profile.orbs[inheritName]
-        if inheritSettings == nil then error('Inherited orb "'..inheritName..'" does not exist') end
-        inheritSettings = ReadOrbSettings(inheritSettings)
-
-        OrbFrames.TraverseSchema(inheritSettings, OrbSchema, {
-            VisitSetting = function(name, value, schema, iterator)
-                if iterator.readSettings[name] == nil then
-                    if inheritStyle == 'mirror' then
-                        if schema._mirror then
-                            value = schema._mirror(value)
-                        end
-                    end
-                    iterator.readSettings[name] = value
-                end
-            end,
-            EnterGroup = Enter,
-            EnterList = Enter,
-            EnterListElement = Enter,
-            readSettings = readSettings,
-        })
-    end
-
-    -- Apply missing defaults
-    OrbFrames.ApplySchemaDefaults(readSettings, OrbSchema)
-
-    return readSettings
 end
 
--- ----------------------------------------------------------------------------
---  Meta
--- ----------------------------------------------------------------------------
+function Orb:SetOrbPipRotatePips(rotatePips)
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('Pips'):SetRotatePips(rotatePips)
+    end
+end
 
--- Setting 'enabled' (boolean)
--- Description: Whether the orb is enabled or disabled
-OrbSchema.enabled = {
-    _priority = -100,
-    _default = true,
-    _apply = Orb.SetOrbEnabled,
-}
+function Orb:SetOrbPipBaseRotation(baseRotation)
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('Pips'):SetBaseRotation(baseRotation)
+    end
+end
 
--- Setting 'locked' (boolean)
--- Description: Whether the orb is locked in place, or can be repositioned with
---              the mouse
-OrbSchema.locked = {
-    _default = true,
-    _apply = Orb.SetOrbLocked,
-}
+function Orb:SetOrbPipTextures(textures)
+    local style = self.style
+    if style == 'simple' then
+        self:GetComponent('Pips'):SetTextures(textures)
+    end
+end
 
--- ----------------------------------------------------------------------------
---  Style
--- ----------------------------------------------------------------------------
-
--- Setting 'style' (string)
--- Description: The style used for the orb
--- Values: 'simple' - A plain ol' orb
-OrbSchema.style = {
-    _priority = 100,
-    _default = 'simple',
-    _apply = Orb.SetOrbStyle,
-}
-
--- Setting 'direction' (string)
--- Description: The direction the orb fills in
--- Values: 'up', 'down', 'left', 'right'
-OrbSchema.direction = {
-    _apply = Orb.SetOrbDirection,
-    _default = 'up',
-    _mirror = function(direction)
-        return OrbFrames.mirroredDirections[direction]
-    end,
-}
-
--- Setting 'unit' (string)
--- Description: Which unit the orb is tracking
--- Values: Any valid WoW unit name
-OrbSchema.unit = {
-    _default = 'player',
-    _apply = Orb.SetOrbUnit,
-}
-
--- Setting 'resource' (string)
--- Description: Which resource the orb is displaying
--- Values: 'health' - The unit's health
---         'power'  - The unit's primary power type
---         'power2' - The unit's secondary power type
---         'empty'  - Always show an empty orb
---         'full'   - Always show a full orb
-OrbSchema.resource = {
-    _default = 'health',
-    _apply = Orb.SetOrbResource,
-}
-
--- Setting 'colorStyle' (string)
--- Description: The method used to choose the color for the orb liquid
--- Values: 'class'    - The unit's class color
---         'resource' - The resource's color
---         'reaction' - The unit's reaction color
-OrbSchema.colorStyle = {
-    _default = 'resource',
-    _apply = Orb.SetOrbColorStyle,
-}
-
--- Setting 'showAbsorb' (boolean)
--- Description: When the orb resource is 'health', display absorb effects on
---              the unit as an overlay on the orb
-OrbSchema.showAbsorb = {
-    _default = true,
-    _apply = Orb.SetOrbShowAbsorb,
-}
-
--- Setting 'showHeals' (boolean)
--- Description: When the orb resource is 'health', display incoming heals as
---              a semi-transparent liquid on top of the health liquid
-OrbSchema.showHeals = {
-    _default = true,
-    _apply = Orb.SetOrbShowHeals,
-}
-
--- ----------------------------------------------------------------------------
---  Size and positioning
--- ----------------------------------------------------------------------------
-
--- Setting 'size' (number)
--- Description: The vertical size of the orb
-OrbSchema.size = {
-    _default = 256,
-    _apply = function(orb, size)
-        local aspectRatio = orb.settings.aspectRatio
-        if aspectRatio ~= nil then
-            orb:SetOrbSize(size, aspectRatio)
+function Orb:SetOrbPipResourceTextures(resourceTextures)
+    local style = self.style
+    if style == 'simple' then
+        for resource, textures in pairs(resourceTextures) do
+            self:GetComponent('Pips'):SetResourceTextures(resource, textures)
         end
-    end,
-}
-
--- Setting 'aspectRatio' (number)
--- Description: The ratio between the orb's height and its width
-OrbSchema.aspectRatio = {
-    _default = 1,
-    _apply = function(orb, aspectRatio)
-        local size = orb.settings.size
-        if size ~= nil then
-            orb:SetOrbSize(size, aspectRatio)
-        end
-    end,
-}
-
--- Setting 'parent' (string)
--- Description: Which orb, if any, to be parented to
--- Values: 'orb:' followed by any valid orb name
---         Any valid frame name
---         nil - Parent to UIParent by default
-OrbSchema.parent = {
-    _priority = 1,
-    _default = nil,
-    _apply = function(orb, parent)
-        local parentOrb = string.match(parent, '^orb:(.*)')
-        if parentOrb then
-            parent = OrbFrames.orbs[parentOrb]
-        else
-            parent = _G[parent]
-        end
-        orb:SetParent(parent)
-        local anchor = orb.settings.anchor
-        if anchor ~= nil then
-            orb:SetOrbPosition(anchor)
-        end
-    end,
-}
-
--- Setting 'anchor' (table)
--- Description: An anchor used to position the orb
--- Values: { point (string)         - Point on the orb to anchor with
---         , relativeTo (string)    - Name of the frame to anchor to (defaults
---                                    to the orb's parent)
---         , relativePoint (string) - Point on the relative frame to anchor to
---                                    (defaults to same as point)
---         , x (number)             - X offset (defaults to 0)
---         , y (number)             - Y offset (defaults to 0)
---         }
---         nil - Defaults to { point = 'CENTER', }
--- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
---        BOTTOM, BOTTOMLEFT, LEFT, CENTER
-OrbSchema.anchor = {
-    _default = function()
-        return {
-            point = 'CENTER',
-        }
-    end,
-    _apply = function(orb, anchor)
-        orb:SetOrbPosition(anchor)
-    end,
-    _mirror = function(anchor)
-        return {
-            point = OrbFrames.mirroredAnchors[anchor.point],
-            relativeTo = anchor.relativeTo,
-            relativePoint = OrbFrames.mirroredAnchors[anchor.relativePoint],
-            x = -anchor.x,
-            y = anchor.y,
-        }
-    end,
-}
-
--- ----------------------------------------------------------------------------
---  Textures
--- ----------------------------------------------------------------------------
-
--- Setting group 'backdrop'
--- Description: Contains settings related to the orb's backdrop
-OrbSchema.backdrop = {
-    _type = 'group',
-
-    -- Setting 'texture' (string)
-    -- Description: Name of the texture to use as a backdrop
-    -- Values: Any valid path to a texture
-    texture = {
-        _default = '',
-        _apply = function(orb, texture)
-            orb:SetOrbSconceTexture('Backdrop', texture)
-        end,
-    },
-
-}
-
--- Setting group 'backdropArt'
--- Description: Contains settings related to the orb's backdrop art
-OrbSchema.backdropArt = {
-    _type = 'group',
-
-    -- Setting 'texture' (string)
-    -- Description: Name of the texture to use as art behind and around the backdrop
-    -- Values: Any valid path to a texture
-    texture = {
-        _default = '',
-        _apply = function(orb, texture)
-            orb:SetOrbSconceTexture('BackdropArt', texture)
-        end,
-    },
-
-}
-
--- Setting group 'fill'
--- Description: Contains settings related to the orb's fill
-OrbSchema.fill = {
-    _type = 'group',
-
-    -- Setting 'texture' (string)
-    -- Description: Name of the texture to use for the fill
-    -- Values: Any valid path to a texture
-    texture = {
-        _default = '',
-        _apply = Orb.SetOrbFillTexture,
-    },
-
-    -- Setting 'resourceTextures' (table)
-    -- Description: A lookup table of textures to use for specific resources
-    -- Values: A lookup table where keys are resource names, and values are
-    --         any valid path to a texture
-    resourceTextures = {
-        _default = function() return { } end,
-        _apply = Orb.SetOrbFillResourceTextures,
-    },
-
-}
-
--- Setting group 'border'
--- Description: Contains settings related to the orb's border
-OrbSchema.border = {
-    _type = 'group',
-
-    -- Setting 'texture' (string)
-    -- Description: Name of the texture to use as a border
-    -- Values: Any valid path to a texture
-    texture = {
-        _default = '',
-        _apply = function(orb, texture)
-            orb:SetOrbSconceTexture('Border', texture)
-        end,
-    },
-
-}
-
--- Setting group 'borderArt'
--- Description: Contains settings related to the orb's border art
-OrbSchema.borderArt = {
-    _type = 'group',
-
-    -- Setting 'texture' (string)
-    -- Description: Name of the texture to use as border artwork
-    -- Values: Any valid path to a texture
-    texture = {
-        _default = '',
-        _apply = function(orb, texture)
-            orb:SetOrbSconceTexture('BorderArt', texture)
-        end,
-    },
-
-}
+    end
+end

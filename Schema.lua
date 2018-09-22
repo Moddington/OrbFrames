@@ -1,16 +1,9 @@
 -- ============================================================================
 --  Schema.lua
--- ----------------------------------------------------------------------------
---  A. TraverseSchema
---  B. Utils
 -- ============================================================================
 
 local _, OrbFrames = ...
 local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
-
--- ============================================================================
---  A. TraverseSchema
--- ============================================================================
 
 function OrbFrames.TraverseSchema(settings, schema, iterator)
     -- iterator = {
@@ -41,12 +34,12 @@ function OrbFrames.TraverseSchema(settings, schema, iterator)
         local value = settings[name]
         if value ~= nil and not string.match(name, '^_') then
             if schema._type == 'group' then
-                local value, iterator = iterator.EnterGroup(name, value, iterator)
+                local iterator = iterator.EnterGroup(name, value, iterator)
                 OrbFrames.TraverseSchema(value, schema, iterator)
             elseif schema._type == 'list' then
-                local value, iterator = iterator.EnterList(name, value, iterator)
+                local iterator = iterator.EnterList(name, value, iterator)
                 for name, value in pairs(value) do
-                    local value, iterator = iterator.EnterListElement(name, value, iterator)
+                    local iterator = iterator.EnterListElement(name, value, iterator)
                     OrbFrames.TraverseSchema(value, schema, iterator)
                 end
             else
@@ -85,32 +78,3 @@ function OrbFrames.ApplySchemaDefaults(settings, schema)
         end
     end
 end
-
--- ============================================================================
---  B. Utils
--- ============================================================================
-
-OrbFrames.mirroredAlignments = {
-    ['LEFT'] = 'RIGHT',
-    ['CENTER'] = 'CENTER',
-    ['RIGHT'] = 'LEFT',
-}
-
-OrbFrames.mirroredAnchors = {
-    ['TOPLEFT'] = 'TOPRIGHT',
-    ['TOP'] = 'TOP',
-    ['TOPRIGHT'] = 'TOPLEFT',
-    ['RIGHT'] = 'LEFT',
-    ['BOTTOMRIGHT'] = 'BOTTOMLEFT',
-    ['BOTTOM'] = 'BOTTOM',
-    ['BOTTOMLEFT'] = 'BOTTOMRIGHT',
-    ['LEFT'] = 'RIGHT',
-    ['CENTER'] = 'CENTER',
-}
-
-OrbFrames.mirroredDirections = {
-    ['up'] = 'up',
-    ['down'] = 'down',
-    ['left'] = 'right',
-    ['right'] = 'left',
-}

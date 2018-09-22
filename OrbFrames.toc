@@ -24,3 +24,4 @@ Components\ResourceBar.lua
 Components\Sconce.lua
 
 Orb.lua
+OrbSchema.lua

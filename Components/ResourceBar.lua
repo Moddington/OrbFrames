@@ -223,7 +223,6 @@ function ResourceBar:SetUnit(unit)
         parentUnit = 'player'
     end
     self.parentUnit = parentUnit
-    self.targettingUnit = targettingUnit
     self:RegisterEvents()
     self:UpdateProportion()
     self:UpdateColor()

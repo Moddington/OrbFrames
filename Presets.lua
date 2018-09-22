@@ -235,14 +235,14 @@ presets['PlayerPower'] = {
 
     pips = {
         shape = 'orb',
-        size = 20,
         radiusOffset = 0,
         arcSegment = { 115, 165 },
+        size = 20,
         rotatePips = true,
         baseRotation = 0,
         textures = {
-            'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
-            { 0, 0, 0 }, -- TODO
+            on = 'Interface\\AddOns\\OrbFrames\\Media\\circle.tga',
+            off = { 0, 0, 0 }, -- TODO
         },
 --[[ TODO:
         resourceTextures = {
