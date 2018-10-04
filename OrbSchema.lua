@@ -6,6 +6,7 @@
 --  C. Size and positioning
 --  D. Textures
 --  E. Pips
+--  F. Labels
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -501,7 +502,7 @@ OrbSchema.pips = {
     --         }
     textures = {
         _default = {
-            on = '', 
+            on = '',
             off = '',
         },
         _apply = Orb.SetOrbPipTextures,
@@ -516,4 +517,117 @@ OrbSchema.pips = {
         _default = { },
         _apply = Orb.SetOrbPipResourceTextures,
     },
+}
+
+-- ============================================================================
+--  F. Labels
+-- ============================================================================
+
+-- Settings for elements list 'labels'
+-- Description: An orb can have a number of labels on it to provide text display
+OrbSchema.labels = {
+    _type = 'list',
+    _priority = -10,
+
+    -- Setting 'text' (string)
+    -- Description: A format string used to determine the label's text
+    -- Values: A string optionally containing tags wrapped in {} braces.
+    --         See the LabelTags table for a list of tags.
+    text = {
+        _default = '',
+        _apply = function(label, text)
+            label:SetText(text)
+        end,
+    },
+
+    -- Setting 'font' (string)
+    -- Description: The font object
+    -- Values: Any string that refers to a font object in the global namespace
+    font = {
+        _priority = 10,
+        _default = 'GameFontWhite',
+        _apply = function(label, font)
+            label:SetFont(_G[font]) -- TODO: better font lookup
+        end,
+    },
+
+    -- Setting 'anchor' (table)
+    -- Description: An anchor used to position the label
+    -- Values: { point (string)         - Point on the label to anchor with
+    --         , relativePoint (string) - Point on the orb to anchor to
+    --                                    (defaults to same as point)
+    --         , x (number)             - X offset (defaults to 0)
+    --         , y (number)             - Y offset (defaults to 0)
+    --         }
+    --         nil - Defaults to { point = 'CENTER', }
+    -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
+    --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
+    anchor = {
+        _default = {
+            point = 'CENTER',
+        },
+        _apply = function(label, anchor)
+            label:SetAnchor(anchor)
+        end,
+        _mirror = function(anchor)
+            return {
+                point = OrbFrames.mirroredAnchors[anchor.point],
+                relativePoint = OrbFrames.mirroredAnchors[anchor.relativePoint],
+                x = -anchor.x,
+                y = anchor.y,
+            }
+        end,
+    },
+
+    -- Setting 'width' (number)
+    -- Description: The maximum width of the label
+    width = {
+        _default = 0,
+        _apply = function(label, width)
+            label:SetWidth(width)
+        end,
+    },
+
+    -- Setting 'height' (number)
+    -- Description: The maximum height of the label
+    height = {
+        _default = 0,
+        _apply = function(label, height)
+            label:SetHeight(height)
+        end,
+    },
+
+    -- Setting 'justifyH' (string)
+    -- Description: The horizontal justification for the text
+    -- Values: 'LEFT', 'CENTER', 'RIGHT'
+    justifyH = {
+        _default = 'LEFT',
+        _apply = function(label, justifyH)
+            label:SetJustifyH(justifyH)
+        end,
+        _mirror = function(justifyH)
+            return OrbFrames.mirroredAlignments[justifyH]
+        end,
+    },
+
+    -- Setting 'justifyV' (string)
+    -- Description: The vertical justification for the text
+    -- Values: 'TOP', 'MIDDLE', 'BOTTOM'
+    justifyV = {
+        _default = 'TOP',
+        _apply = function(label, justifyV)
+            label:SetJustifyV(justifyV)
+        end,
+    },
+
+    -- Setting 'showOnlyOnHover' (boolean)
+    -- Description: Whether the label should only be visible while hovering
+    --              over the orb
+    showOnlyOnHover = {
+        _default = false,
+        _apply = function(label, showOnlyOnHover)
+            label:SetShowOnlyOnHover(showOnlyOnHover)
+        end,
+    },
+
 }

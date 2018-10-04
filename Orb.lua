@@ -9,6 +9,7 @@
 --   - Size and positioning
 --   - Textures
 --   - Pips
+--   - Labels
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -59,6 +60,7 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
 
     -- Initialize orb
     RegisterUnitWatch(orb)
+    orb.labels = { }
     orb:EnableMouse(true)
     orb:SetMovable(true)
     orb:SetClampedToScreen(true)
@@ -139,17 +141,36 @@ function Orb:ApplyOrbSettings(settings)
             schema._apply(self, value)
         end
     end
+    local function VisitLabelSetting(name, value, schema, iterator)
+        if iterator.settings[name] ~= value then
+            iterator.settings[name] = value
+            schema._apply(iterator.label, value)
+        end
+    end
     local function Enter(name, value, iterator)
         iterator = table.copy(iterator)
         iterator.settings[name] = iterator.settings[name] or { }
         iterator.settings = iterator.settings[name]
         return iterator
     end
+    local function EnterLabel(name, value, iterator)
+        self:AddOrbLabel(name)
+        iterator = Enter(name, value, iterator)
+        iterator.label = self.labels[name]
+        return iterator
+    end
+    local function EnterList(name, value, iterator)
+        iterator = Enter(name, value, iterator)
+        if name == 'labels' then
+            iterator.VisitSetting = VisitLabelSetting
+            iterator.EnterListElement = EnterLabel
+        end
+        return iterator
+    end
     OrbFrames.TraverseSchema(settings, OrbFrames.OrbSchema, {
         VisitSetting = VisitSetting,
         EnterGroup = Enter,
-        EnterList = Enter,
-        EnterListElement = Enter,
+        EnterList = EnterList,
         settings = self.settings,
     })
 end
@@ -282,6 +303,9 @@ function Orb:SetOrbUnit(unit)
     if style == 'simple' then
         self:GetComponent('FillBar'):SetUnit(unit)
         self:GetComponent('Pips'):SetUnit(unit)
+        for name, label in pairs(self.labels) do
+            label:SetUnit(unit)
+        end
     end
 end
 
@@ -295,6 +319,9 @@ function Orb:SetOrbResource(resource)
             pips:SetResource('power2')
         else
             pips:SetResource()
+        end
+        for name, label in pairs(self.labels) do
+            label:SetResource(resource)
         end
     end
 end
@@ -414,4 +441,15 @@ function Orb:SetOrbPipResourceTextures(resourceTextures)
             self:GetComponent('Pips'):SetResourceTextures(resource, textures)
         end
     end
+end
+
+-- ----------------------------------------------------------------------------
+--  Labels
+-- ----------------------------------------------------------------------------
+
+function Orb:AddOrbLabel(name)
+    local label = self:CreateOrEnableComponent(OrbFrames.Components.Label, 'Label_'..name)
+    self.labels[name] = label
+    label:SetUnit(self.unit)
+    label:SetResource(self.resource)
 end

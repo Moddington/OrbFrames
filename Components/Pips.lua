@@ -2,19 +2,29 @@
 --  Components/Pips.lua
 -- ----------------------------------------------------------------------------
 --  A. Pips component
+--   - Callbacks and updates
+--   - Helpers
+--   - Settings
 -- ============================================================================
 
 local _, OrbFrames = ...
 local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 
+local ResourceDisplay = OrbFrames.Components.ResourceDisplay
+
 -- ============================================================================
 --  A. Pips component
 -- ============================================================================
 
-local Pips = OrbFrames:ComponentType('OrbFrames.Components.Pips')
+local Pips = OrbFrames:ComponentType('OrbFrames.Components.Pips', ResourceDisplay)
 OrbFrames.Components.Pips = Pips
 
+-- ----------------------------------------------------------------------------
+--  Callbacks and updates
+-- ----------------------------------------------------------------------------
+
 function Pips:OnInitialize(entity, layer, subLayer)
+    self:SetScript('OnShow', self.OnShow)
     self:RegisterMessage('ENTITY_SIZE_CHANGED', self.OnEntitySizeChanged)
 
     self.pips = { }
@@ -25,8 +35,27 @@ function Pips:OnInitialize(entity, layer, subLayer)
     self.subLayer = subLayer
 end
 
+function Pips:OnShow()
+    self:UpdateShape()
+    self:UpdateTextures()
+end
+
 function Pips:OnEntitySizeChanged()
     self:UpdateShape()
+end
+
+function Pips:OnUnitEvent(event, unitID)
+    local unit = self.unit
+    if unit == unitID then
+        self:UpdateTextures()
+    end
+end
+
+function Pips:OnParentUnitEvent(event, unitID)
+    local parentUnit = self.parentUnit
+    if parentUnit == unitID then
+        self:UpdateTextures()
+    end
 end
 
 function Pips:OnUnitPowerEvent(event, unitID, power)
@@ -195,30 +224,9 @@ function Pips:UpdateTextures()
     end
 end
 
-function Pips:RegisterEvents()
-    local unit = self.unit
-    local resource = self.resource
-    self:UnregisterAllEvents()
-    if unit == 'focus' then
-        self:RegisterEvent('PLAYER_FOCUS_CHANGED', self.OnParentUnitEvent)
-    elseif string.match(unit, 'target$') then
-        local parentUnit = self.parentUnit
-        if parentUnit == 'player' then
-            self:RegisterEvent('PLAYER_TARGET_CHANGED', self.OnParentUnitEvent)
-        elseif parentUnit ~= nil then
-            self:RegisterEvent('UNIT_TARGET', self.OnParentUnitEvent)
-        end
-    end
-    if resource == 'power2' then
-        self:RegisterEvent('UNIT_POWER_UPDATE', self.OnUnitPowerEvent)
-        self:RegisterEvent('UNIT_POWER_FREQUENT', self.OnUnitPowerEvent)
-        self:RegisterEvent('UNIT_MAXPOWER', self.OnUnitMaxPowerEvent)
-    else
-        for n, pip in pairs(self.pips) do
-            pip:Hide()
-        end
-    end
-end
+-- ----------------------------------------------------------------------------
+--  Helpers
+-- ----------------------------------------------------------------------------
 
 function Pips:GetPipCount()
     local unit = self.unit
@@ -231,21 +239,18 @@ function Pips:GetPipCount()
     return 0, 0
 end
 
+-- ----------------------------------------------------------------------------
+--  Settings
+-- ----------------------------------------------------------------------------
+
 function Pips:SetUnit(unit)
-    self.unit = unit
-    local parentUnit = string.match(unit, '^(.*)target$')
-    if parentUnit == '' or unit == 'focus' then
-        parentUnit = 'player'
-    end
-    self.parentUnit = parentUnit
-    self:RegisterEvents()
+    ResourceDisplay.SetUnit(self, unit)
     self:UpdateShape()
     self:UpdateTextures()
 end
 
 function Pips:SetResource(resource)
-    self.resource = resource
-    self:RegisterEvents()
+    ResourceDisplay.SetResource(self, resource)
     self:UpdateShape()
     self:UpdateTextures()
 end

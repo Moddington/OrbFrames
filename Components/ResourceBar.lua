@@ -2,17 +2,24 @@
 --  Components/ResourceBar.lua
 -- ----------------------------------------------------------------------------
 --  A. ResourceBar component
+--   - Callbacks and updates
 -- ============================================================================
 
 local _, OrbFrames = ...
 local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 
+local ResourceDisplay = OrbFrames.Components.ResourceDisplay
+
 -- ============================================================================
 --  A. ResourceBar component
 -- ============================================================================
 
-local ResourceBar = OrbFrames:ComponentType('OrbFrames.Components.ResourceBar')
+local ResourceBar = OrbFrames:ComponentType('OrbFrames.Components.ResourceBar', ResourceDisplay)
 OrbFrames.Components.ResourceBar = ResourceBar
+
+-- ----------------------------------------------------------------------------
+--  Callbacks and updates
+-- ----------------------------------------------------------------------------
 
 function ResourceBar:OnInitialize(entity, layer, subLayer)
     self:SetScript('OnShow', self.OnShow)
@@ -57,37 +64,7 @@ function ResourceBar:OnEntitySizeChanged()
     self:UpdateProportion()
 end
 
-function ResourceBar:RegisterEvents()
-    local unit = self.unit
-    local resource = self.resource
-    self:UnregisterAllEvents()
-    if unit == 'focus' then
-        self:RegisterEvent('PLAYER_FOCUS_CHANGED', self.OnParentUnitEvent)
-    elseif string.match(unit, 'target$') then
-        local parentUnit = self.parentUnit
-        if parentUnit == 'player' then
-            self:RegisterEvent('PLAYER_TARGET_CHANGED', self.OnParentUnitEvent)
-        elseif parentUnit ~= nil then
-            self:RegisterEvent('UNIT_TARGET', self.OnParentUnitEvent)
-        end
-    end
-    if resource == 'health' then
-        self:RegisterEvent('UNIT_HEALTH', self.OnUnitResourceEvent)
-        self:RegisterEvent('UNIT_HEALTH_FREQUENT', self.OnUnitResourceEvent)
-        self:RegisterEvent('UNIT_MAXHEALTH', self.OnUnitResourceEvent)
-    elseif resource == 'power' or resource == 'power2' then
-        self:RegisterEvent('UNIT_POWER_UPDATE', self.OnUnitResourceEvent)
-        self:RegisterEvent('UNIT_POWER_FREQUENT', self.OnUnitResourceEvent)
-        self:RegisterEvent('UNIT_MAXPOWER', self.OnUnitResourceEvent)
-        self:RegisterEvent('UNIT_DISPLAYPOWER', self.OnUnitEvent)
-    elseif resource == 'absorb' then
-        -- TODO
-    elseif resource == 'heals' then
-        -- TODO
-    end
-end
-
-function ResourceBar:SetAnchors()
+function ResourceBar:UpdateAnchors()
     local direction = self.direction
     local region = self.region
     region:ClearAllPoints()
@@ -216,21 +193,18 @@ function ResourceBar:UpdateTexture()
     OrbFrames.ApplyTexture(self.region, texture)
 end
 
+-- ----------------------------------------------------------------------------
+--  Settings
+-- ----------------------------------------------------------------------------
+
 function ResourceBar:SetUnit(unit)
-    self.unit = unit
-    local parentUnit = string.match(unit, '^(.*)target$')
-    if parentUnit == '' or unit == 'focus' then
-        parentUnit = 'player'
-    end
-    self.parentUnit = parentUnit
-    self:RegisterEvents()
+    ResourceDisplay.SetUnit(self, unit)
     self:UpdateProportion()
     self:UpdateColor()
 end
 
 function ResourceBar:SetResource(resource)
-    self.resource = resource
-    self:RegisterEvents()
+    ResourceDisplay.SetResource(self, resource)
     self:UpdateProportion()
     self:UpdateColor()
     self:UpdateTexture()
@@ -243,7 +217,7 @@ end
 
 function ResourceBar:SetDirection(direction)
     self.direction = direction
-    self:SetAnchors()
+    self:UpdateAnchors()
     self:UpdateProportion()
 end
 
