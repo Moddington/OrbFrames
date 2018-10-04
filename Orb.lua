@@ -10,6 +10,7 @@
 --   - Textures
 --   - Pips
 --   - Labels
+--   - Icons
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -61,6 +62,7 @@ function OrbFrames:CreateOrb(name, settings, twoPhase)
     -- Initialize orb
     RegisterUnitWatch(orb)
     orb.labels = { }
+    orb.icons = { }
     orb:EnableMouse(true)
     orb:SetMovable(true)
     orb:SetClampedToScreen(true)
@@ -147,6 +149,12 @@ function Orb:ApplyOrbSettings(settings)
             schema._apply(iterator.label, value)
         end
     end
+    local function VisitIconSetting(name, value, schema, iterator)
+        if iterator.settings[name] ~= value then
+            iterator.settings[name] = value
+            schema._apply(iterator.icon, value)
+        end
+    end
     local function Enter(name, value, iterator)
         iterator = table.copy(iterator)
         iterator.settings[name] = iterator.settings[name] or { }
@@ -159,11 +167,20 @@ function Orb:ApplyOrbSettings(settings)
         iterator.label = self.labels[name]
         return iterator
     end
+    local function EnterIcon(name, value, iterator)
+        self:AddOrbIcon(name)
+        iterator = Enter(name, value, iterator)
+        iterator.icon = self.icons[name]
+        return iterator
+    end
     local function EnterList(name, value, iterator)
         iterator = Enter(name, value, iterator)
         if name == 'labels' then
             iterator.VisitSetting = VisitLabelSetting
             iterator.EnterListElement = EnterLabel
+        elseif name == 'icons' then
+            iterator.VisitSetting = VisitIconSetting
+            iterator.EnterListElement = EnterIcon
         end
         return iterator
     end
@@ -452,4 +469,22 @@ function Orb:AddOrbLabel(name)
     self.labels[name] = label
     label:SetUnit(self.unit)
     label:SetResource(self.resource)
+end
+
+-- ----------------------------------------------------------------------------
+--  Icons
+-- ----------------------------------------------------------------------------
+
+function Orb:AddOrbIcon(name)
+    local icon = self:CreateOrEnableComponent(OrbFrames.Components.Icon, 'Icon_'..name, name)
+    self.icons[name] = icon
+    icon:SetIconScale(self.iconScale)
+    icon:SetUnit(self.unit)
+end
+
+function Orb:SetOrbIconScale(iconScale)
+    self.iconScale = iconScale
+    for name, icon in pairs(self.icons) do
+        icon:SetIconScale(iconScale)
+    end
 end

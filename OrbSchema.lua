@@ -7,6 +7,7 @@
 --  D. Textures
 --  E. Pips
 --  F. Labels
+--  G. Icons
 -- ============================================================================
 
 local _, OrbFrames = ...
@@ -630,4 +631,62 @@ OrbSchema.labels = {
         end,
     },
 
+}
+
+-- ============================================================================
+--  G. Icons
+-- ============================================================================
+
+-- Setting 'iconScale' (number)
+-- Description: The size to use for icons
+OrbSchema.iconScale = {
+    _default = 1,
+    _apply = function(orb, iconScale)
+        orb:SetOrbIconScale(iconScale)
+    end,
+}
+
+-- Settings for elements list 'icons'
+-- Description: A number of preset indicator icons are available for display on an orb
+-- Values: For a list of valid element names, see the OrbFrames.IconTypes table
+OrbSchema.icons = {
+    _type = 'list',
+    _priority = -10,
+
+    -- Setting 'enabled' (boolean)
+    -- Description: Whether the icon is enabled
+    enabled = {
+        _default = false,
+        _apply = function(icon, enabled)
+            icon:SetEnabled(enabled)
+        end,
+    },
+
+    -- Setting 'anchor' (table)
+    -- Description: An anchor used to position the icon
+    -- Values: { point (string)         - Point on the label to anchor with
+    --         , relativePoint (string) - Point on the orb to anchor to
+    --                                    (defaults to same as point)
+    --         , x (number)             - X offset (defaults to 0)
+    --         , y (number)             - Y offset (defaults to 0)
+    --         }
+    --         nil - Defaults to { point = 'CENTER', }
+    -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
+    --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
+    anchor = {
+        _default = {
+            point = 'CENTER',
+        },
+        _apply = function(icon, anchor)
+            icon:SetAnchor(anchor)
+        end,
+        _mirror = function(anchor)
+            return {
+                point = OrbFrames.mirroredAnchors[anchor.point],
+                relativePoint = OrbFrames.mirroredAnchors[anchor.relativePoint],
+                x = -anchor.x,
+                y = anchor.y,
+            }
+        end,
+    },
 }

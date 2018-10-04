@@ -14,6 +14,10 @@ local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 
 local ResourceDisplay = OrbFrames.Components.ResourceDisplay
 
+-- Label tags table
+local LabelTags = { }
+OrbFrames.LabelTags = LabelTags
+
 -- ============================================================================
 --  A. Label component
 -- ============================================================================
@@ -110,9 +114,6 @@ end
 -- ============================================================================
 --  B. Label tags
 -- ============================================================================
-
-local LabelTags = { }
-OrbFrames.LabelTags = LabelTags
 
 -- ----------------------------------------------------------------------------
 --  Formatting method
