@@ -403,3 +403,75 @@ presets['TargetHealth'] = {
         },
     },
 }
+
+presets['TargetOfTargetHealth'] = {
+    enabled = true,
+    locked = true,
+
+    unit = 'targettarget',
+    direction = 'right',
+    resource = 'health',
+    style = 'simple',
+    colorStyle = 'reaction',
+
+    size = 48,
+    aspectRatio = 1,
+    parent = 'orb:TargetHealth',
+    anchor = {
+        point = 'LEFT',
+        relativePoint = 'RIGHT',
+        x = 15,
+        y = 0,
+    },
+
+    backdrop = {
+        texture = { 0, 0, 0 },
+    },
+    backdropArt = {
+        texture = '',
+    },
+    fill = {
+        texture = { 1, 1, 1 },
+    },
+    border = {
+        texture = '',
+    },
+    borderArt = {
+        texture = '',
+    },
+
+    labels = {
+        ['name'] = {
+            text = '{name}',
+            font = 'GameFontWhite',
+            anchor = {
+                point = 'CENTER',
+            },
+            width = 0,
+            justifyH = 'CENTER',
+            justifyV = 'TOP',
+        },
+    },
+
+    iconScale = 0.75,
+    icons = {
+        pvpFlag = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'RIGHT',
+                x = 0,
+                y = 0,
+            },
+        },
+        raidTarget = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOM',
+                x = 0,
+                y = 0,
+            },
+        },
+    },
+}
