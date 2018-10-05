@@ -479,7 +479,7 @@ end
 -- ----------------------------------------------------------------------------
 
 function Orb:AddOrbIcon(name)
-    local icon = self:CreateOrEnableComponent(OrbFrames.Components.Icon, 'Icon_'..name, name)
+    local icon = self:CreateOrEnableComponent(OrbFrames.IconTypes[name], 'Icon_'..name)
     self.icons[name] = icon
     icon:SetIconScale(self.iconScale)
     icon:SetUnit(self.unit)

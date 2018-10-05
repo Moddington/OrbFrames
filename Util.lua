@@ -48,9 +48,18 @@ end
 
 function OrbFrames.ApplyTexture(region, texture)
     if type(texture) == 'string' then
+        -- Simple texture file
         region:SetTexture(texture)
+        region:SetTexCoord(0, 1, 0, 1)
     elseif type(texture) == 'table' then
-        region:SetColorTexture(unpack(texture))
+        if texture.file then
+            -- Texture file with tex coords
+            region:SetTexture(texture.file)
+            region:SetTexCoord(unpack(texture))
+        else
+            -- Color texture
+            region:SetColorTexture(unpack(texture))
+        end
     else
         region:SetTexture()
     end

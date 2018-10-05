@@ -5,14 +5,17 @@
 --   - Callbacks and updates
 --   - Settings
 --  B. Icon types
+--   - OnCombatIcon component
+--   - RestingIcon component
+--   - PvPFlagIcon component
+--   - GroupLeaderIcon component
+--   - GroupRoleIcon component
+--   - MasterLooterIcon component
+--   - RaidTargetIcon component
 -- ============================================================================
 
 local _, OrbFrames = ...
 local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
-
--- Icon types table
-local IconTypes = { }
-OrbFrames.IconTypes = IconTypes
 
 -- ============================================================================
 --  A. Icon component
@@ -25,14 +28,16 @@ OrbFrames.Components.Icon = Icon
 --  Callbacks and updates
 -- ----------------------------------------------------------------------------
 
-function Icon:OnInitialize(entity, iconType)
+Icon.WIDTH = 32
+Icon.HEIGHT = 32
+
+function Icon:OnInitialize(entity)
     self:SetScript('OnShow', self.OnShow)
     self:RegisterMessage('ENTITY_SIZE_CHANGED', self.OnEntitySizeChanged)
 
-    self.iconType = IconTypes[iconType]
-
     self.region = entity:CreateTexture(entity:GetName()..'_'..self:GetName())
-    self.region:SetDrawLayer('ARTWORK', 5)
+    self.region:SetDrawLayer('OVERLAY')
+    self.region:Hide()
 
     self:SetIconScale(1)
 end
@@ -44,15 +49,25 @@ end
 function Icon:OnEntitySizeChanged()
 end
 
-function Icon:OnEvent(event, ...)
-    self:UpdateIcon()
+function Icon:OnParentUnitEvent(event, unitID)
+    local parentUnit = self.parentUnit
+    if unitID == parentUnit or (parentUnit == 'player' and unitID == nil) then
+        self:UpdateIcon()
+    end
 end
 
 function Icon:RegisterEvents()
     self:UnregisterAllEvents()
-    local iconType = self.iconType
-    for n, event in ipairs(iconType.events) do
-        self:RegisterEvent(event, self.OnEvent)
+    local unit = self.unit
+    if unit == 'focus' then
+        self:RegisterEvent('PLAYER_FOCUS_CHANGED', self.OnParentUnitEvent)
+    elseif string.match(unit, 'target$') then
+        local parentUnit = self.parentUnit
+        if parentUnit == 'player' then
+            self:RegisterEvent('PLAYER_TARGET_CHANGED', self.OnParentUnitEvent)
+        elseif parentUnit ~= nil then
+            self:RegisterEvent('UNIT_TARGET', self.OnParentUnitEvent)
+        end
     end
 end
 
@@ -67,19 +82,7 @@ function Icon:UpdateAnchors()
 end
 
 function Icon:UpdateIcon()
-    local region = self.region
-    if self.enabled then
-        local iconType = self.iconType
-        local textureKey = iconType.GetTextureKey(self.unit)
-        if textureKey then
-            OrbFrames.ApplyTexture(region, iconType.textures[textureKey])
-            region:Show()
-        else
-            region:Hide()
-        end
-    else
-        region:Hide()
-    end
+    error('Not implemented') -- Override me
 end
 
 -- ----------------------------------------------------------------------------
@@ -94,8 +97,8 @@ end
 function Icon:SetIconScale(iconScale)
     local region = self.region
     local iconType = self.iconType
-    region:SetWidth(iconScale * (iconType.width or 16))
-    region:SetHeight(iconScale * (iconType.height or 16))
+    region:SetWidth(iconScale * self.WIDTH)
+    region:SetHeight(iconScale * self.HEIGHT)
 end
 
 function Icon:SetAnchor(anchor)
@@ -105,6 +108,11 @@ end
 
 function Icon:SetUnit(unit)
     self.unit = unit
+    local parentUnit = string.match(unit, '^(.*)target$')
+    if parentUnit == '' or unit == 'focus' then
+        parentUnit = 'player'
+    end
+    self.parentUnit = parentUnit
     self:RegisterEvents()
 end
 
@@ -112,75 +120,247 @@ end
 --  B. Icon types
 -- ============================================================================
 
-IconTypes.inCombat = {
-    events = { },
-    textures = {
+local IconTypes = { }
+OrbFrames.IconTypes = IconTypes
+
+-- ----------------------------------------------------------------------------
+--  InCombatIcon component
+-- ----------------------------------------------------------------------------
+
+local InCombatIcon = OrbFrames:ComponentType('OrbFrames.Components.InCombatIcon', Icon)
+OrbFrames.Components.InCombatIcon = InCombatIcon
+IconTypes['inCombat'] = InCombatIcon
+
+function InCombatIcon:OnInitialize(entity)
+    Icon.OnInitialize(self, entity)
+
+    OrbFrames.ApplyTexture(self.region, {
+        file = 'Interface\\CharacterFrame\\UI-StateIcon',
+        0.5, 1, 0, 0.5,
+    })
+    -- TODO: there is a glow overlay in UI-StateIcon; use it?
+end
+
+function InCombatIcon:RegisterEvents()
+    Icon.RegisterEvents(self)
+    local unit = self.unit
+    if unit == 'player' then
+        self:RegisterEvent('PLAYER_REGEN_DISABLED', self.OnPlayerRegenDisabled)
+        self:RegisterEvent('PLAYER_REGEN_ENABLED', self.OnPlayerRegenEnabled)
+    end
+end
+
+function InCombatIcon:OnPlayerRegenDisabled(event)
+    self.inCombat = true
+    self.region:Show()
+end
+
+function InCombatIcon:OnPlayerRegenEnabled(event)
+    self.inCombat = false
+    self.region:Hide()
+end
+
+function InCombatIcon:UpdateIcon()
+    local region = self.region
+    if self.inCombat then
+        region:Show()
+    else
+        region:Hide()
+    end
+end
+
+-- ----------------------------------------------------------------------------
+--  RestingIcon component
+-- ----------------------------------------------------------------------------
+
+local RestingIcon = OrbFrames:ComponentType('OrbFrames.Components.RestingIcon', Icon)
+OrbFrames.Components.RestingIcon = RestingIcon
+IconTypes['resting'] = RestingIcon
+
+function RestingIcon:OnInitialize(entity)
+    Icon.OnInitialize(self, entity)
+
+    OrbFrames.ApplyTexture(self.region, {
+        file = 'Interface\\CharacterFrame\\UI-StateIcon',
+        0, 0.5, 0, 0.5,
+    })
+    -- TODO: there is a glow overlay in UI-StateIcon; use it?
+end
+
+function RestingIcon:RegisterEvents()
+    Icon.RegisterEvents(self)
+    local unit = self.unit
+    if unit == 'player' then
+        self:RegisterEvent('PLAYER_UPDATE_RESTING', self.OnPlayerUpdateResting)
+    end
+end
+
+function RestingIcon:OnPlayerUpdateResting(event)
+    self:UpdateIcon()
+end
+
+function RestingIcon:UpdateIcon()
+    local region = self.region
+    if self.unit == 'player' and IsResting() then
+        region:Show()
+    else
+        region:Hide()
+    end
+end
+
+-- ----------------------------------------------------------------------------
+--  PvPFlagIcon component
+-- ----------------------------------------------------------------------------
+
+local PvPFlagIcon = OrbFrames:ComponentType('OrbFrames.Components.PvPFlagIcon', Icon)
+OrbFrames.Components.PvPFlagIcon = PvPFlagIcon
+IconTypes['pvpFlag'] = PvPFlagIcon
+
+PvPFlagIcon.WIDTH = 40
+PvPFlagIcon.HEIGHT = 40
+
+PvPFlagIcon.TEXTURES = {
+    Alliance = {
+        file = 'Interface\\TargetingFrame\\UI-PVP-Alliance',
+        0, 40/64, 0, 40/64,
     },
-    GetTextureKey = function(unit)
-    end,
+    Horde = {
+        file = 'Interface\\TargetingFrame\\UI-PVP-Horde',
+        0, 40/64, 0, 40/64,
+    },
+    FreeForAll = {
+        file = 'Interface\\TargetingFrame\\UI-PVP-FFA',
+        0, 40/64, 0, 40/64,
+    },
 }
 
-IconTypes.resting = {
-    events = { 'PLAYER_UPDATE_RESTING', },
-    textures = {
-        resting = { 1, 1, 1 },
-    },
-    GetTextureKey = function(unit)
-        if unit == 'player' and IsResting() then
-            return 'resting'
+function PvPFlagIcon:OnInitialize(entity)
+    Icon.OnInitialize(self, entity)
+end
+
+function PvPFlagIcon:RegisterEvents()
+    Icon.RegisterEvents(self)
+end
+
+function PvPFlagIcon:UpdateIcon()
+    local unit = self.unit
+    local region = self.region
+    if UnitIsPVPFreeForAll(unit) then
+        OrbFrames.ApplyTexture(region, self.TEXTURES.FreeForAll)
+        region:Show()
+    else
+        local faction = UnitFactionGroup(unit)
+        if faction and faction ~= 'Neutral' and UnitIsPVP(unit) then
+            OrbFrames.ApplyTexture(region, self.TEXTURES[faction])
+            region:Show()
+        else
+            region:Hide()
         end
-    end,
+    end
+end
+
+-- ----------------------------------------------------------------------------
+--  GroupLeaderIcon component
+-- ----------------------------------------------------------------------------
+
+local GroupLeaderIcon = OrbFrames:ComponentType('OrbFrames.Components.GroupLeaderIcon', Icon)
+OrbFrames.Components.GroupLeaderIcon = GroupLeaderIcon
+IconTypes['groupLeader'] = GroupLeaderIcon
+
+function GroupLeaderIcon:OnInitialize(entity)
+    Icon.OnInitialize(self, entity)
+end
+
+function GroupLeaderIcon:RegisterEvents()
+    Icon.RegisterEvents(self)
+end
+
+function GroupLeaderIcon:UpdateIcon()
+    local unit = self.unit
+    local region = self.region
+end
+
+-- ----------------------------------------------------------------------------
+--  GroupRoleIcon component
+-- ----------------------------------------------------------------------------
+
+local GroupRoleIcon = OrbFrames:ComponentType('OrbFrames.Components.GroupRoleIcon', Icon)
+OrbFrames.Components.GroupRoleIcon = GroupRoleIcon
+IconTypes['groupRole'] = GroupRoleIcon
+
+function GroupRoleIcon:OnInitialize(entity)
+    Icon.OnInitialize(self, entity)
+end
+
+function GroupRoleIcon:RegisterEvents()
+    Icon.RegisterEvents(self)
+end
+
+function GroupRoleIcon:UpdateIcon()
+    local unit = self.unit
+    local region = self.region
+end
+
+-- ----------------------------------------------------------------------------
+--  MasterLooterIcon component
+-- ----------------------------------------------------------------------------
+
+local MasterLooterIcon = OrbFrames:ComponentType('OrbFrames.Components.MasterLooterIcon', Icon)
+OrbFrames.Components.MasterLooterIcon = MasterLooterIcon
+IconTypes['masterLooter'] = MasterLooterIcon
+
+function MasterLooterIcon:OnInitialize(entity)
+    Icon.OnInitialize(self, entity)
+end
+
+function MasterLooterIcon:RegisterEvents()
+    Icon.RegisterEvents(self)
+end
+
+function MasterLooterIcon:UpdateIcon()
+    local unit = self.unit
+    local region = self.region
+end
+
+-- ----------------------------------------------------------------------------
+--  RaidTargetIcon component
+-- ----------------------------------------------------------------------------
+
+local RaidTargetIcon = OrbFrames:ComponentType('OrbFrames.Components.RaidTargetIcon', Icon)
+OrbFrames.Components.RaidTargetIcon = RaidTargetIcon
+IconTypes['raidTarget'] = RaidTargetIcon
+
+RaidTargetIcon.TEXTURES = {
+    [1] = { file = 'Interface\\TargetingFrame\\UI-RaidTargetingIcons', 0/4, 1/4, 0/4, 1/4, },
+    [2] = { file = 'Interface\\TargetingFrame\\UI-RaidTargetingIcons', 1/4, 2/4, 0/4, 1/4, },
+    [3] = { file = 'Interface\\TargetingFrame\\UI-RaidTargetingIcons', 2/4, 3/4, 0/4, 1/4, },
+    [4] = { file = 'Interface\\TargetingFrame\\UI-RaidTargetingIcons', 3/4, 4/4, 0/4, 1/4, },
+    [5] = { file = 'Interface\\TargetingFrame\\UI-RaidTargetingIcons', 0/4, 1/4, 1/4, 2/4, },
+    [6] = { file = 'Interface\\TargetingFrame\\UI-RaidTargetingIcons', 1/4, 2/4, 1/4, 2/4, },
+    [7] = { file = 'Interface\\TargetingFrame\\UI-RaidTargetingIcons', 2/4, 3/4, 1/4, 2/4, },
+    [8] = { file = 'Interface\\TargetingFrame\\UI-RaidTargetingIcons', 3/4, 4/4, 1/4, 2/4, },
 }
 
-IconTypes.pvpFlag = {
-    events = { },
-    width = 16,
-    height = 32,
-    textures = {
-        alliance = { 1, 1, 1 },
-        horde = { 1, 1, 1 },
-    },
-    GetTextureKey = function(unit)
-    end,
-}
+function RaidTargetIcon:OnInitialize(entity)
+    Icon.OnInitialize(self, entity)
+end
 
-IconTypes.groupLeader = {
-    events = { },
-    textures = {
-    },
-    GetTextureKey = function(unit)
-    end,
-}
+function RaidTargetIcon:OnRaidTargetUpdate(event)
+    self:UpdateIcon()
+end
 
-IconTypes.groupRole = {
-    events = { },
-    textures = {
-    },
-    GetTextureKey = function(unit)
-    end,
-}
+function RaidTargetIcon:RegisterEvents()
+    Icon.RegisterEvents(self)
+    self:RegisterEvent('RAID_TARGET_UPDATE', self.OnRaidTargetUpdate)
+end
 
-IconTypes.masterLooter = {
-    events = { },
-    textures = {
-    },
-    GetTextureKey = function(unit)
-    end,
-}
-
-IconTypes.raidTarget = {
-    events = { 'RAID_TARGET_UPDATE', },
-    textures = {
-        [1] = { 1, 1, 0 },
-        [2] = { 1, 0.5, 0 },
-        [3] = { 1, 0, 1 },
-        [4] = { 0, 1, 0 },
-        [5] = { 1, 1, 1 },
-        [6] = { 0, 0, 1 },
-        [7] = { 1, 0, 0 },
-        [8] = { 0.5, 0.5, 0.5 },
-    },
-    GetTextureKey = function(unit)
-        return GetRaidTargetIndex(unit)
-    end,
-}
+function RaidTargetIcon:UpdateIcon()
+    local region = self.region
+    local raidTarget = GetRaidTargetIndex(self.unit)
+    if raidTarget then
+        OrbFrames.ApplyTexture(region, self.TEXTURES[raidTarget])
+        region:Show()
+    else
+        region:Hide()
+    end
+end

@@ -94,7 +94,7 @@ presets['PlayerPortrait'] = {
         },
     },
 
-    iconScale = 1,
+    iconScale = 0.75,
     icons = {
         inCombat = {
             enabled = true,
@@ -154,7 +154,7 @@ presets['PlayerPortrait'] = {
             enabled = true,
             anchor = {
                 point = 'CENTER',
-                relativePoint = 'BOTTOMRIGHT',
+                relativePoint = 'BOTTOM',
                 x = 0,
                 y = 0,
             },
@@ -378,6 +378,28 @@ presets['TargetHealth'] = {
             width = 0,
             justifyH = 'RIGHT',
             justifyV = 'MIDDLE',
+        },
+    },
+
+    iconScale = 0.75,
+    icons = {
+        pvpFlag = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'RIGHT',
+                x = 0,
+                y = 0,
+            },
+        },
+        raidTarget = {
+            enabled = true,
+            anchor = {
+                point = 'CENTER',
+                relativePoint = 'BOTTOM',
+                x = 0,
+                y = 0,
+            },
         },
     },
 }
