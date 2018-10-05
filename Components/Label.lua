@@ -30,6 +30,8 @@ OrbFrames.Components.Label = Label
 -- ----------------------------------------------------------------------------
 
 function Label:OnInitialize(entity)
+    ResourceDisplay.OnInitialize(self, entity)
+
     self:SetScript('OnShow', self.OnShow)
     self:RegisterMessage('ENTITY_SIZE_CHANGED', self.OnEntitySizeChanged)
 
@@ -42,6 +44,20 @@ function Label:OnShow()
 end
 
 function Label:OnEntitySizeChanged()
+end
+
+function Label:OnParentUnitEvent(event, unitID)
+    local parentUnit = self.parentUnit
+    if unitID == parentUnit or (parentUnit == 'player' and unitID == nil) then
+        self:UpdateText()
+    end
+end
+
+function Label:OnUnitEvent(event, unitID, ...)
+    local unit = self.unit
+    if unitID == unit then
+        self:UpdateText()
+    end
 end
 
 function Label:UpdateAnchors()

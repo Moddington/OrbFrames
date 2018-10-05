@@ -320,9 +320,12 @@ function Orb:SetOrbUnit(unit)
     if style == 'simple' then
         self:GetComponent('FillBar'):SetUnit(unit)
         self:GetComponent('Pips'):SetUnit(unit)
-        for name, label in pairs(self.labels) do
-            label:SetUnit(unit)
-        end
+    end
+    for name, label in pairs(self.labels) do
+        label:SetUnit(unit)
+    end
+    for name, icon in pairs(self.icons) do
+        icons:SetUnit(unit)
     end
 end
 

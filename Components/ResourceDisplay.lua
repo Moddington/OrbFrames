@@ -32,18 +32,18 @@ function ResourceDisplay:RegisterEvents()
         end
     end
     if resource == 'health' then
-        self:RegisterEvent('UNIT_HEALTH', self.OnUnitHealthEvent)
-        self:RegisterEvent('UNIT_HEALTH_FREQUENT', self.OnUnitHealthEvent)
-        self:RegisterEvent('UNIT_MAXHEALTH', self.OnUnitMaxHealthEvent)
+        self:RegisterEvent('UNIT_HEALTH', self.OnUnitEvent)
+        self:RegisterEvent('UNIT_HEALTH_FREQUENT', self.OnUnitEvent)
+        self:RegisterEvent('UNIT_MAXHEALTH', self.OnUnitEvent)
     elseif resource == 'power' then
-        self:RegisterEvent('UNIT_POWER_UPDATE', self.OnUnitPowerEvent)
-        self:RegisterEvent('UNIT_POWER_FREQUENT', self.OnUnitPowerEvent)
-        self:RegisterEvent('UNIT_MAXPOWER', self.OnUnitMaxPowerEvent)
-        self:RegisterEvent('UNIT_DISPLAYPOWER', self.OnUnitPowerEvent)
+        self:RegisterEvent('UNIT_POWER_UPDATE', self.OnUnitEvent)
+        self:RegisterEvent('UNIT_POWER_FREQUENT', self.OnUnitEvent)
+        self:RegisterEvent('UNIT_MAXPOWER', self.OnUnitEvent)
+        self:RegisterEvent('UNIT_DISPLAYPOWER', self.OnUnitEvent)
     elseif resource == 'power2' then
-        self:RegisterEvent('UNIT_POWER_UPDATE', self.OnUnitPowerEvent)
-        self:RegisterEvent('UNIT_POWER_FREQUENT', self.OnUnitPowerEvent)
-        self:RegisterEvent('UNIT_MAXPOWER', self.OnUnitMaxPowerEvent)
+        self:RegisterEvent('UNIT_POWER_UPDATE', self.OnUnitEvent)
+        self:RegisterEvent('UNIT_POWER_FREQUENT', self.OnUnitEvent)
+        self:RegisterEvent('UNIT_MAXPOWER', self.OnUnitEvent)
     elseif resource == 'absorb' then
         -- TODO
     elseif resource == 'heals' then

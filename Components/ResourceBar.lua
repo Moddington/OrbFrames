@@ -22,6 +22,8 @@ OrbFrames.Components.ResourceBar = ResourceBar
 -- ----------------------------------------------------------------------------
 
 function ResourceBar:OnInitialize(entity, layer, subLayer)
+    ResourceDisplay.OnInitialize(self, entity)
+
     self:SetScript('OnShow', self.OnShow)
     self:RegisterMessage('ENTITY_SIZE_CHANGED', self.OnEntitySizeChanged)
 
@@ -37,23 +39,18 @@ function ResourceBar:OnShow()
     self:UpdateTexture()
 end
 
-function ResourceBar:OnUnitEvent(event, unitID, ...)
-    if self.unit == unitID then
+function ResourceBar:OnParentUnitEvent(event, unitID)
+    local parentUnit = self.parentUnit
+    if unitID == parentUnit or (parentUnit == 'player' and unitID == nil) then
         self:UpdateProportion()
         self:UpdateColor()
         self:UpdateTexture()
     end
 end
 
-function ResourceBar:OnUnitResourceEvent(event, unitID, ...)
-    if self.unit == unitID then
-        self:UpdateProportion()
-    end
-end
-
-function ResourceBar:OnParentUnitEvent(event, unitID, ...)
-    if self.parentUnit == unitID or
-        (self.parentUnit == 'player' and string.match(event, '^PLAYER')) then
+function ResourceBar:OnUnitEvent(event, unitID, ...)
+    local unit = self.unit
+    if unitID == unit then
         self:UpdateProportion()
         self:UpdateColor()
         self:UpdateTexture()

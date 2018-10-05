@@ -24,6 +24,8 @@ OrbFrames.Components.Pips = Pips
 -- ----------------------------------------------------------------------------
 
 function Pips:OnInitialize(entity, layer, subLayer)
+    ResourceDisplay.OnInitialize(self, entity)
+
     self:SetScript('OnShow', self.OnShow)
     self:RegisterMessage('ENTITY_SIZE_CHANGED', self.OnEntitySizeChanged)
 
@@ -44,42 +46,20 @@ function Pips:OnEntitySizeChanged()
     self:UpdateShape()
 end
 
-function Pips:OnUnitEvent(event, unitID)
-    local unit = self.unit
-    if unit == unitID then
-        self:UpdateTextures()
-    end
-end
-
 function Pips:OnParentUnitEvent(event, unitID)
     local parentUnit = self.parentUnit
-    if parentUnit == unitID then
+    if unitID == parentUnit or (parentUnit == 'player' and unitID == nil) then
         self:UpdateTextures()
     end
 end
 
-function Pips:OnUnitPowerEvent(event, unitID, power)
+function Pips:OnUnitEvent(event, unitID, ...)
     local unit = self.unit
-    if unit == unitID then
-        local resource = self.resource
-        if resource == 'power2' then
-            if power == select(2, UnitPower2Type(unit)) then
-                self:UpdateTextures()
-            end
+    if unitID == unit then
+        if event == 'UNIT_MAX_POWER' or event == 'UNIT_MAX_HEALTH' then
+            self:UpdateShape()
         end
-    end
-end
-
-function Pips:OnUnitMaxPowerEvent(event, unitID, power)
-    local unit = self.unit
-    if unit == unitID then
-        local resource = self.resource
-        if resource == 'power2' then
-            if power == select(2, UnitPower2Type(unit)) then
-                self:UpdateShape()
-                self:UpdateTextures()
-            end
-        end
+        self:UpdateTextures()
     end
 end
 
