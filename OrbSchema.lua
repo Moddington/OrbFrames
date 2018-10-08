@@ -146,15 +146,20 @@ OrbSchema.parent = {
     _priority = 1,
     _default = nil,
     _apply = function(orb, parent)
-        local parentOrb = string.match(parent, '^orb:(.*)')
-        if parentOrb then
-            parent = OrbFrames.orbs[parentOrb]
+        local parentFrame
+        if parent == nil then
+            parentFrame = UIParent
         else
-            parent = _G[parent]
+            local parentOrb = string.match(parent, '^orb:(.*)')
+            if parentOrb then
+                parentFrame = OrbFrames.orbs[parentOrb]
+            else
+                parentFrame = _G[parent]
+            end
         end
-        orb:SetParent(parent)
+        orb:SetParent(parentFrame)
         local anchor = orb.settings.anchor
-        if anchor ~= nil then
+        if anchor and anchor.relativeTo == nil then
             orb:SetOrbPosition(anchor)
         end
     end,
@@ -174,11 +179,12 @@ OrbSchema.parent = {
 -- Notes: Valid points are: TOPLEFT, TOP, TOPRIGHT, RIGHT, BOTTOMRIGHT,
 --        BOTTOM, BOTTOMLEFT, LEFT, CENTER
 OrbSchema.anchor = {
-    _default = {
-        point = 'CENTER',
-    },
+    _default = nil,
+    _alwaysApply = true,
     _apply = function(orb, anchor)
-        orb:SetOrbPosition(anchor)
+        orb:SetOrbPosition(anchor or {
+            point = 'CENTER',
+        })
     end,
     _mirror = function(anchor)
         return {
@@ -570,6 +576,7 @@ OrbSchema.labels = {
         _apply = function(label, anchor)
             label:SetAnchor(anchor)
         end,
+        _alwaysApply = true,
         _mirror = function(anchor)
             return {
                 point = OrbFrames.mirroredAnchors[anchor.point],
@@ -680,6 +687,7 @@ OrbSchema.icons = {
         _apply = function(icon, anchor)
             icon:SetAnchor(anchor)
         end,
+        _alwaysApply = true,
         _mirror = function(anchor)
             return {
                 point = OrbFrames.mirroredAnchors[anchor.point],

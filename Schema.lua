@@ -8,9 +8,9 @@ local L = LibStub('AceLocale-3.0'):GetLocale('OrbFrames')
 function OrbFrames.TraverseSchema(settings, schema, iterator)
     -- iterator = {
     --     VisitSetting = function(name, value, schema, iterator) return end,
-    --     EnterGroup = function(name, value, iterator) return value, iterator end,
-    --     EnterList = function(name, value, iterator) return value, iterator end,
-    --     EnterListElement = function(name, value, iterator) return value, iterator end,
+    --     EnterGroup = function(name, iterator) return iterator end,
+    --     EnterList = function(name, iterator) return iterator end,
+    --     EnterListElement = function(name, iterator) return iterator end,
     --     ...,
     -- }
 
@@ -34,12 +34,12 @@ function OrbFrames.TraverseSchema(settings, schema, iterator)
         local value = settings[name]
         if value ~= nil and not string.match(name, '^_') then
             if schema._type == 'group' then
-                local iterator = iterator.EnterGroup(name, value, iterator)
+                local iterator = iterator.EnterGroup(name, iterator)
                 OrbFrames.TraverseSchema(value, schema, iterator)
             elseif schema._type == 'list' then
-                local iterator = iterator.EnterList(name, value, iterator)
+                local iterator = iterator.EnterList(name, iterator)
                 for name, value in pairs(value) do
-                    local iterator = iterator.EnterListElement(name, value, iterator)
+                    local iterator = iterator.EnterListElement(name, iterator)
                     OrbFrames.TraverseSchema(value, schema, iterator)
                 end
             else

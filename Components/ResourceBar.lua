@@ -34,26 +34,26 @@ function ResourceBar:OnInitialize(entity, layer, subLayer)
 end
 
 function ResourceBar:OnShow()
-    self:UpdateProportion()
     self:UpdateColor()
     self:UpdateTexture()
+    self:UpdateProportion()
 end
 
 function ResourceBar:OnParentUnitEvent(event, unitID)
     local parentUnit = self.parentUnit
     if unitID == parentUnit or (parentUnit == 'player' and unitID == nil) then
-        self:UpdateProportion()
         self:UpdateColor()
         self:UpdateTexture()
+        self:UpdateProportion()
     end
 end
 
 function ResourceBar:OnUnitEvent(event, unitID, ...)
     local unit = self.unit
     if unitID == unit then
-        self:UpdateProportion()
         self:UpdateColor()
         self:UpdateTexture()
+        self:UpdateProportion()
     end
 end
 
@@ -77,60 +77,6 @@ function ResourceBar:UpdateAnchors()
     elseif direction == 'right' then
         region:SetPoint('TOPLEFT')
         region:SetPoint('BOTTOMLEFT')
-    end
-end
-
-function ResourceBar:UpdateProportion()
-    local entity = self:GetEntity()
-    local region = self.region
-    local unit = self.unit
-    local resource = self.resource
-
-    local proportion = 0
-    if unit and UnitExists(unit) then
-        if resource == 'health' then
-            local health, healthMax = UnitHealth(unit), UnitHealthMax(unit)
-            if healthMax > 0 then
-                proportion = health / healthMax
-            end
-        elseif resource == 'power' then
-            local power, powerMax = UnitPower(unit), UnitPowerMax(unit)
-            if powerMax > 0 then
-                proportion = power / powerMax
-            end
-        elseif resource == 'power2' then
-            local power2, power2Max = UnitPower2(unit), UnitPower2Max(unit)
-            if power2Max > 0 then
-                proportion = power2 / power2Max
-            end
-        elseif resource == 'absorb' then
-            -- TODO
-        elseif resource == 'heals' then
-            local health, healthMax = UnitHealth(unit), UnitHealthMax(unit)
-            -- TODO
-        elseif resource == 'full' then
-            proportion = 1
-        end
-    end
-    if proportion > 0 then
-        proportion = math.min(1, proportion)
-        local direction = self.direction
-        if direction == 'up' then
-            region:SetHeight(entity:GetHeight() * proportion)
-            region:SetTexCoord(0, 1, 1 - proportion, 1)
-        elseif direction == 'down' then
-            region:SetHeight(entity:GetHeight() * proportion)
-            region:SetTexCoord(0, 1, 0, proportion)
-        elseif direction == 'left' then
-            region:SetWidth(entity:GetWidth() * proportion)
-            region:SetTexCoord(1 - proportion, 1, 0, 1)
-        elseif direction == 'right' then
-            region:SetWidth(entity:GetWidth() * proportion)
-            region:SetTexCoord(0, proportion, 0, 1)
-        end
-        region:Show()
-    else
-        region:Hide()
     end
 end
 
@@ -190,21 +136,75 @@ function ResourceBar:UpdateTexture()
     OrbFrames.ApplyTexture(self.region, texture)
 end
 
+function ResourceBar:UpdateProportion()
+    local entity = self:GetEntity()
+    local region = self.region
+    local unit = self.unit
+    local resource = self.resource
+
+    local proportion = 0
+    if unit and UnitExists(unit) then
+        if resource == 'health' then
+            local health, healthMax = UnitHealth(unit), UnitHealthMax(unit)
+            if healthMax > 0 then
+                proportion = health / healthMax
+            end
+        elseif resource == 'power' then
+            local power, powerMax = UnitPower(unit), UnitPowerMax(unit)
+            if powerMax > 0 then
+                proportion = power / powerMax
+            end
+        elseif resource == 'power2' then
+            local power2, power2Max = UnitPower2(unit), UnitPower2Max(unit)
+            if power2Max > 0 then
+                proportion = power2 / power2Max
+            end
+        elseif resource == 'absorb' then
+            -- TODO
+        elseif resource == 'heals' then
+            local health, healthMax = UnitHealth(unit), UnitHealthMax(unit)
+            -- TODO
+        elseif resource == 'full' then
+            proportion = 1
+        end
+    end
+    if proportion > 0 then
+        proportion = math.min(1, proportion)
+        local direction = self.direction
+        if direction == 'up' then
+            region:SetHeight(entity:GetHeight() * proportion)
+            region:SetTexCoord(0, 1, 1 - proportion, 1)
+        elseif direction == 'down' then
+            region:SetHeight(entity:GetHeight() * proportion)
+            region:SetTexCoord(0, 1, 0, proportion)
+        elseif direction == 'left' then
+            region:SetWidth(entity:GetWidth() * proportion)
+            region:SetTexCoord(1 - proportion, 1, 0, 1)
+        elseif direction == 'right' then
+            region:SetWidth(entity:GetWidth() * proportion)
+            region:SetTexCoord(0, proportion, 0, 1)
+        end
+        region:Show()
+    else
+        region:Hide()
+    end
+end
+
 -- ----------------------------------------------------------------------------
 --  Settings
 -- ----------------------------------------------------------------------------
 
 function ResourceBar:SetUnit(unit)
     ResourceDisplay.SetUnit(self, unit)
-    self:UpdateProportion()
     self:UpdateColor()
+    self:UpdateProportion()
 end
 
 function ResourceBar:SetResource(resource)
     ResourceDisplay.SetResource(self, resource)
-    self:UpdateProportion()
     self:UpdateColor()
     self:UpdateTexture()
+    self:UpdateProportion()
 end
 
 function ResourceBar:SetColorStyle(colorStyle)

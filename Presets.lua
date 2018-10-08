@@ -445,7 +445,10 @@ presets['TargetOfTargetHealth'] = {
             text = '{name}',
             font = 'GameFontWhite',
             anchor = {
-                point = 'CENTER',
+                point = 'TOP',
+                relativePoint = 'BOTTOM',
+                x = 0,
+                y = -10,
             },
             width = 0,
             justifyH = 'CENTER',

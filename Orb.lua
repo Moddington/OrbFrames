@@ -130,51 +130,50 @@ end
 --  C. Settings
 -- ============================================================================
 
-local ReadOrbSettings
-
 function Orb:ApplyOrbSettings(settings)
     -- Read orb settings to acquire inherited and default values
-    settings = ReadOrbSettings(settings)
+    settings = OrbFrames.ReadOrbSettings(settings)
 
     -- Apply settings
     local function VisitSetting(name, value, schema, iterator)
-        if iterator.settings[name] ~= value then
+        if iterator.settings[name] ~= value or schema._alwaysApply then
             iterator.settings[name] = value
             schema._apply(self, value)
         end
     end
     local function VisitLabelSetting(name, value, schema, iterator)
-        if iterator.settings[name] ~= value then
+        if iterator.settings[name] ~= value or schema._alwaysApply then
             iterator.settings[name] = value
             schema._apply(iterator.label, value)
         end
     end
     local function VisitIconSetting(name, value, schema, iterator)
-        if iterator.settings[name] ~= value then
+        if iterator.settings[name] ~= value or schema._alwaysApply then
             iterator.settings[name] = value
             schema._apply(iterator.icon, value)
         end
     end
-    local function Enter(name, value, iterator)
+    local function Enter(name, iterator)
         iterator = table.copy(iterator)
         iterator.settings[name] = iterator.settings[name] or { }
         iterator.settings = iterator.settings[name]
         return iterator
     end
-    local function EnterLabel(name, value, iterator)
+    local function EnterLabel(name, iterator)
         self:AddOrbLabel(name)
-        iterator = Enter(name, value, iterator)
+        iterator = Enter(name, iterator)
         iterator.label = self.labels[name]
         return iterator
     end
-    local function EnterIcon(name, value, iterator)
+    local function EnterIcon(name, iterator)
         self:AddOrbIcon(name)
-        iterator = Enter(name, value, iterator)
+        iterator = Enter(name, iterator)
         iterator.icon = self.icons[name]
         return iterator
     end
-    local function EnterList(name, value, iterator)
-        iterator = Enter(name, value, iterator)
+    local function EnterList(name, iterator)
+        iterator = Enter(name, iterator)
+        iterator.EnterList = nil
         if name == 'labels' then
             iterator.VisitSetting = VisitLabelSetting
             iterator.EnterListElement = EnterLabel
@@ -195,23 +194,69 @@ end
 function Orb:ApplyOrbSetting(path, value)
     local schema = OrbFrames.OrbSchema
     local settings = self.settings
-    local name = string.gsub(path, '(.-)\.', function(tableName)
+
+    local function Enter(name, iterator)
+        settings[name] = settings[name] or { }
+        settings = settings[name]
+        return iterator
+    end
+    local function EnterIcon(name, iterator)
+        self:AddOrbIcon(name)
+        Enter(name)
+        return iterator
+    end
+    local function EnterLabel(name, iterator)
+        self:AddOrbLabel(name)
+        Enter(name)
+        return iterator
+    end
+    local iterator = {
+        EnterGroup = Enter,
+        EnterList = function(name, iterator)
+            Enter(name)
+            iterator.EnterList = nil
+            if name == 'labels' then
+                iterator.EnterListElement = EnterLabel
+            elseif name == 'icons' then
+                iterator.EnterListElement = EnterIcon
+            end
+            return iterator
+        end,
+    }
+
+    local state = 'orb'
+    local name = string.gsub(path, '(.-)\\.', function(tableName)
         schema = schema[tableName]
         settings[tableName] = settings[tableName] or { }
         settings = settings[tableName]
+        if state == 'orb' then
+            if schema.__type == 'list' then
+                if tableName == 'icons' then
+                    state = 'icons'
+                elseif tableName == 'labels' then
+                    state = 'labels'
+                end
+            end
+        elseif state == 'icons' then
+            self:AddOrbIcon(tableName)
+            state = 'icon'
+        elseif state == 'labels' then
+            self:AddOrbLabel(tableName)
+            state = 'label'
+        end
         return ''
     end)
-    if value ~= settings[name] then
+    if value ~= settings[name] or schema[name]._alwaysApply then
         settings[name] = value
         schema[name]._apply(self, value)
     end
 end
 
-function ReadOrbSettings(settings)
+function OrbFrames.ReadOrbSettings(settings)
     local readSettings = { }
 
     -- Iterator functions
-    local function Enter(name, value, iterator)
+    local function Enter(name, iterator)
         iterator = table.copy(iterator)
         iterator.readSettings[name] = iterator.readSettings[name] or { }
         iterator.readSettings = iterator.readSettings[name]
@@ -238,7 +283,7 @@ function ReadOrbSettings(settings)
     if inheritName ~= nil then
         local inheritSettings = OrbFrames.db.profile.orbs[inheritName]
         if inheritSettings == nil then error('Inherited orb "'..inheritName..'" does not exist') end
-        inheritSettings = ReadOrbSettings(inheritSettings)
+        inheritSettings = OrbFrames.ReadOrbSettings(inheritSettings)
 
         OrbFrames.TraverseSchema(inheritSettings, OrbFrames.OrbSchema, {
             VisitSetting = function(name, value, schema, iterator)
@@ -264,6 +309,37 @@ function ReadOrbSettings(settings)
     return readSettings
 end
 
+function OrbFrames.ReadOrbSetting(settings, path)
+    local inheritName = settings.inherit
+    local inheritStyle = settings.inheritStyle or 'copy'
+    local schema = OrbFrames.OrbSchema
+
+    local name = string.gsub(path, '(.-)\\.', function(tableName)
+        schema = schema[tableName]
+        settings = settings[tableName] or { }
+        return ''
+    end)
+    local retval = settings[name]
+
+    if retval == nil then
+        if inheritName then
+            local inheritSettings = OrbFrames.db.profile.orbs[inheritName]
+            if inheritSettings == nil then error('Inherited orb "'..inheritName..'" does not exist') end
+            retval = OrbFrames.ReadOrbSetting(inheritSettings, path)
+        end
+
+        if retval == nil then
+            retval = schema.__default
+        elseif inheritStyle == 'mirror' then
+            if schema._mirror then
+                retval = schema._mirror(value)
+            end
+        end
+    end
+
+    return retval
+end
+
 -- ----------------------------------------------------------------------------
 --  Meta
 -- ----------------------------------------------------------------------------
@@ -272,9 +348,11 @@ function Orb:SetOrbEnabled(enabled)
     self.enabled = enabled
     if enabled then
         self:Show()
+        RegisterUnitWatch(self)
         self:SetOrbStyle(self.style)
     else
         self:DisableAllComponents()
+        UnregisterUnitWatch(self)
         self:Hide()
     end
 end
@@ -375,12 +453,12 @@ end
 function Orb:SetOrbSize(size, aspectRatio)
     self:SetWidth(size * aspectRatio)
     self:SetHeight(size)
-    self:SendMessage('ENTITY_UPDATE_SIZE')
+    self:SendMessage('ENTITY_SIZE_CHANGED')
 end
 
 function Orb:SetOrbPosition(anchor)
     local relativeTo = anchor.relativeTo
-    if relativeTo == nil then relativeTo = self:GetParent() or UIParent end
+    if relativeTo == nil then relativeTo = self:GetParent() end
     local relativePoint = anchor.relativePoint
     if relativePoint == nil then relativePoint = anchor.point end
     self:ClearAllPoints()
